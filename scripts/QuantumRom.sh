@@ -371,7 +371,7 @@ FIX_SYSTEM_EXT() {
         if [ -d "$EXTRACTED_FIRM_DIR/system/system_ext/apex" ]; then
             export TARGET_ROM_SYSTEM_EXT_DIR="$EXTRACTED_FIRM_DIR/system/system_ext"
         elif [ -d "$EXTRACTED_FIRM_DIR/system/system/system_ext/apex" ]; then
-            export TARGET_ROM_SYSTEM_EXT_DIR="$EXTRACTED_FIRM_DIR/system/system/system_ext"
+            export TARGET_ROM_SYSTEM_EXT_DIR="$EXTRACTED_FIRM_DIR/system/system_ext"
         fi
     fi
 }
@@ -392,7 +392,7 @@ FIX_SELINUX() {
     elif [ -d "$EXTRACTED_FIRM_DIR/system/system_ext/apex" ]; then
         export TARGET_ROM_SYSTEM_EXT_DIR="$EXTRACTED_FIRM_DIR/system/system_ext"
     elif [ -d "$EXTRACTED_FIRM_DIR/system/system/system_ext/apex" ]; then
-        export TARGET_ROM_SYSTEM_EXT_DIR="$EXTRACTED_FIRM_DIR/system/system/system_ext"
+        export TARGET_ROM_SYSTEM_EXT_DIR="$EXTRACTED_FIRM_DIR/system/system_ext"
     fi
 
     if [ -n "$STOCK_VNDK_VERSION" ]; then
@@ -755,3 +755,70 @@ BUILD_IMG() {
         fi
     done
 }
+
+###################################################################################################
+# MODDING AND DUMMY FUNCTIONS TO PREVENT ERRORS
+###################################################################################################
+
+APPLY_STOCK_CONFIG() {
+    local CONF="$DEVICES_DIR/$STOCK_DEVICE/config"
+    if [ -f "$CONF" ]; then
+        echo -e "- Applying Stock Device Configuration"
+        export STOCK_VNDK_VERSION=$(grep 'STOCK_VNDK_VERSION=' "$CONF" | cut -d= -f2 | tr -d '\r')
+        export STOCK_DVFS_FILENAME=$(grep 'STOCK_DVFS_FILENAME=' "$CONF" | cut -d= -f2 | tr -d '\r')
+    fi
+    
+    # Tethering Mod Logic
+    if [ "$USE_UI_8_TETHERING_APEX" = "True" ]; then
+        echo -e "- Patching Tethering Mod"
+        cp -rfa "$(pwd)/QuantumROM/Mods/Tethering_Apex/UI-8/." "$1/"
+    fi
+    # Copy stock overlays/files
+    [ -d "$DEVICES_DIR/$STOCK_DEVICE/Stock" ] && cp -a "$DEVICES_DIR/$STOCK_DEVICE/Stock/." "$1/"
+}
+
+APPLY_CUSTOM_FEATURES() {
+    echo -e "${YELLOW}Applying Mods from Repository...${NC}"
+    
+    # 1. SMART MANAGER CN
+    echo -e "- Putting Smart Manager CN Mod"
+    cp -rfa "$(pwd)/QuantumROM/Mods/SMART_MANAGER_CN/." "$1/" 2>/dev/null
+    
+    # 2. GOOGLE PHOTOS
+    echo -e "- Putting Google Photos Unlimited Mod"
+    cp -rfa "$(pwd)/QuantumROM/Mods/GPhotos/." "$1/" 2>/dev/null
+    
+    # 3. EXTRA APPS (AiWallpaper, etc)
+    echo -e "- Putting Mods/Apps content"
+    cp -rfa "$(pwd)/QuantumROM/Mods/Apps/." "$1/" 2>/dev/null
+
+    # 4. SDHMS
+    echo -e "- Putting SDHMS Mod"
+    cp -rfa "$(pwd)/QuantumROM/Mods/SDHMS/." "$1/" 2>/dev/null
+}
+
+BUILD_PROP() {
+    local FILE=""
+    case "$2" in
+        system) FILE="$1/system/system/build.prop" ;;
+        product) FILE="$1/product/etc/build.prop" ;;
+    esac
+    [ ! -f "$FILE" ] && return 1
+    if grep -q "^$3=" "$FILE"; then 
+        sed -i "s|^$3=.*|$3=$4|" "$FILE"
+    else 
+        echo "$3=$4" >> "$FILE"
+    fi
+}
+
+# The following are DUMMY functions. They do nothing but prevent "command not found" errors
+# because sixteen.sh expects them to exist.
+INSTALL_FRAMEWORK() { :; }
+DECOMPILE() { :; }
+RECOMPILE() { :; }
+PATCH_SSRM() { :; }
+PATCH_KNOX_GUARD() { :; }
+PATCH_FLAG_SECURE() { :; }
+PATCH_SECURE_FOLDER() { :; }
+PATCH_PRIVATE_SHARE() { :; }
+PATCH_BT_LIB() { :; }
