@@ -92,63 +92,29 @@ DOWNLOAD_FIRMWARE() {
     mkdir -p "$DOWN_DIR"
 
     echo -e "======================================"
-    echo -e "${YELLOW}  Samsung FW Downloader   ${NC}"
+    echo -e "${YELLOW}  Samsung FW Downloader (SamFW)  ${NC}"
     echo -e "======================================"
     echo -e "MODEL: $MODEL | CSC: $CSC"
 
-    # --- Step 1: Determine Version ---
-    if [ -n "$VERSION" ]; then
-        echo -e "- Downloading provided version: $VERSION"
-    else
-        echo -e "- Fetching latest firmware..."
-
-        VERSION=$(python3 -m samloader -m "$MODEL" -r "$CSC" -i "$IMEI" checkupdate 2>&1)
-
-        if [ $? -ne 0 ] || [ -z "$VERSION" ]; then
-            echo -e "- MODEL/CSC/IMEI not valid or no update found."
-            echo -e "- Error: $VERSION"
-            return 1
-        fi
-
-        echo -e "- Latest version found: $VERSION"
+    # Download using SamFW direct link (passed via env var)
+    echo -e "- Downloading firmware via SamFW..."
+    
+    if [ -z "$SAMFW_URL" ]; then
+        echo -e "- SAMFW_URL not set!"
+        return 1
+    fi
+    
+    wget --no-check-certificate -O "$DOWN_DIR/firmware.zip" "$SAMFW_URL" 2>&1 | tail -3
+    
+    if [ $? -ne 0 ] || [ ! -f "$DOWN_DIR/firmware.zip" ]; then
+        echo -e "- Download failed. Check URL."
+        return 1
     fi
 
-    echo
-
-    # --- Step 2: Download Firmware ---
-    python3 -m samloader -m "$MODEL" -r "$CSC" -i "$IMEI" download -v "$VERSION" -O "$DOWN_DIR"
-    if [ $? -ne 0 ]; then
-        echo -e "- Download failed. Check IMEI/MODEL/CSC."
-        exit 1
-    fi
-
-    # --- Step 3: Decrypt Firmware ---
-    enc_file=$(find "$DOWN_DIR" -name "*.enc*" | head -n 1)
-
-    if [ -z "$enc_file" ]; then
-        echo -e "- No encrypted firmware file found!"
-        exit 1
-    fi
-
-    python3 -m samloader -m "$MODEL" -r "$CSC" -i "$IMEI" decrypt \
-        -v "$VERSION" \
-        -i "$enc_file" \
-        -o "${DOWN_DIR}/${MODEL}.zip" >/dev/null 2>&1
-
-    if [ $? -ne 0 ]; then
-        echo -e "- Decryption failed."
-        exit 1
-    fi
-
-    # --- Show Firmware Info ---
-    file_size=$(du -m "${DOWN_DIR}/${MODEL}.zip" | cut -f1)
-
-    echo
-    echo -e "- Firmware decrypted successfully! Size: ${file_size} MB"
-    echo -e "- Saved to: ${DOWN_DIR}/${MODEL}.zip"
-
-    # --- Cleanup ---
-    rm -f "$enc_file"
+    # Show firmware info
+    file_size=$(du -m "$DOWN_DIR/firmware.zip" | cut -f1)
+    echo -e "- Firmware downloaded successfully! Size: ${file_size} MB"
+    echo -e "- Saved to: $DOWN_DIR/firmware.zip"
 }
 
 
