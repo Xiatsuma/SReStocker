@@ -6,23 +6,11 @@ on:
       STOCK_DEVICE:
         description: "STOCK_DEVICE_MODEL or None"
         required: true
-        default: "SM-A225F"
+        default: "SM-A346E"
       USE_UI_8_TETHERING_APEX:
         description: "Set True if your kernel BPF version is 5.4 (lower than 5.10)."
         required: true
         default: "False"
-      TARGET_DEVICE:
-        description: "TARGET_DEVICE_MODEL."
-        required: true
-        default: "SM-A346E"
-      TARGET_DEVICE_CSC:
-        description: "TARGET_DEVICE_CSC."
-        required: true
-        default: "BKD"
-      TARGET_DEVICE_IMEI:
-        description: "TARGET_DEVICE_IMEI."
-        required: true
-        default: "353435774197736"
       SAMFW_URL:
         description: "Direct SamFW Download URL (.zip)"
         required: true
@@ -38,7 +26,7 @@ on:
 jobs:
   build:
     name: Start QuantumROM Tools Sixteen.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       SAMFW_URL: ${{ inputs.SAMFW_URL }}
 
@@ -55,35 +43,31 @@ jobs:
             exit 1
           fi
 
-      - name: Remove unnecessary files.
-        uses: rokibhasansagar/slimhub_actions@v25.42.5
-
       - name: Install Dependencies.
         run: |
           sudo apt install -y p7zip-full lz4 android-sdk-libsparse-utils f2fs-tools fuse2fs fuse e2fsprogs python3 python3-pip zipalign unzip openjdk-17-jdk jq wget >/dev/null 2>&1
-          # REMOVED: samloader installation (no longer needed)
           bash scripts/setup_directories.sh FIRMWARE WORK OUT
 
-      - name: Download firmware ▶️ ${{ github.event.inputs.TARGET_DEVICE }} - ${{ github.event.inputs.TARGET_DEVICE_CSC }}
+      - name: Download firmware via SamFW
         run: |
           source scripts/QuantumRom.sh
-          DOWNLOAD_FIRMWARE "${{ github.event.inputs.TARGET_DEVICE }}" "${{ github.event.inputs.TARGET_DEVICE_CSC }}" "${{ github.event.inputs.TARGET_DEVICE_IMEI }}" "FIRMWARE"
+          DOWNLOAD_FIRMWARE "DUMMY" "DUMMY" "DUMMY" "FIRMWARE"
 
       - name: Start Rom Build For ${{ github.event.inputs.STOCK_DEVICE }}
         run: |
           sudo bash sixteen.sh \
             "${{ github.event.inputs.STOCK_DEVICE }}" \
             "${{ github.event.inputs.USE_UI_8_TETHERING_APEX }}" \
-            "${{ github.event.inputs.TARGET_DEVICE }}" \
-            "${{ github.event.inputs.TARGET_DEVICE_CSC }}" \
-            "${{ github.event.inputs.TARGET_DEVICE_IMEI }}" \
+            "DUMMY" \
+            "DUMMY" \
+            "DUMMY" \
             "${{ github.event.inputs.OUTPUT_FILESYSTEM }}"
 
       - name: Compress all .img & make zip file before upload.
         run: |
           echo "BUILD_TIME=$(TZ='Asia/Dhaka' date '+%Y-%m-%d %I:%M:%S %p UTC+6')" >> $GITHUB_ENV
           OUT_DIR="$(pwd)/OUT"
-          ZIP_NAME="${{ github.event.inputs.TARGET_DEVICE }}_Port_For_${{ github.event.inputs.STOCK_DEVICE }}.zip"
+          ZIP_NAME="${{ github.event.inputs.STOCK_DEVICE }}_Port.zip"
           ZIP_PATH="$OUT_DIR/$ZIP_NAME"
 
           if [ "${{ github.event.inputs.COMPRESS_IMG_TO_XZ }}" = "True" ]; then
@@ -104,7 +88,6 @@ jobs:
         env:
           GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
           STOCK_DEVICE: ${{ github.event.inputs.STOCK_DEVICE }}
-          TARGET_DEVICE: ${{ github.event.inputs.TARGET_DEVICE }}
           OUTPUT_FILESYSTEM: ${{ github.event.inputs.OUTPUT_FILESYSTEM }}
           COMPRESS_IMG_TO_XZ: ${{ github.event.inputs.COMPRESS_IMG_TO_XZ }}
           USE_UI_8_TETHERING_APEX: ${{ github.event.inputs.USE_UI_8_TETHERING_APEX }}
