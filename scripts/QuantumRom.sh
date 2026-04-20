@@ -6,153 +6,469 @@ YELLOW="\e[33m"
 NC="\e[0m"
 
 REAL_USER=${SUDO_USER:-$USER}
-BIN_PATH="$(pwd)/bin"
 
-# Binary - Use a loop for cleaner chmod
-for tool in "$BIN_PATH/lp/lpunpack" "$BIN_PATH/ext4/make_ext4fs" \
-             "$BIN_PATH/erofs-utils/extract.erofs" "$BIN_PATH/erofs-utils/mkfs.erofs"; do
-    [[ -f "$tool" ]] && chmod +x "$tool"
-done
+# Binary
+chmod +x $(pwd)/bin/lp/lpunpack
+chmod +x $(pwd)/bin/ext4/make_ext4fs
+chmod +x $(pwd)/bin/erofs-utils/extract.erofs
+chmod +x $(pwd)/bin/erofs-utils/mkfs.erofs
+
 
 REMOVE_LINE() {
-    [[ "$#" -ne 2 ]] && return 1
+    if [ "$#" -ne 2 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <TARGET_LINE> <TARGET_FILE>"
+        return 1
+    fi
+
     local LINE="$1"
     local FILE="$2"
+
     echo -e "- Deleting $LINE from $FILE"
-    # sed -i is significantly faster than grep -v > tmp && mv
-    sed -i "\|^$LINE$|d" "$FILE"
+    grep -vxF "$LINE" "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
 }
 
+
 GET_PROP() {
-    [[ "$#" -ne 3 ]] && return 1
+    if [ "$#" -ne 3 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <EXTRACTED_FIRM_DIR> <PARTITION> <PROP>"
+        return 1
+    fi
+
     local EXTRACTED_FIRM_DIR="$1"
     local PARTITION="$2"
     local PROP="$3"
-    local FILE
 
     case "$PARTITION" in
-        system)     FILE="$EXTRACTED_FIRM_DIR/system/system/build.prop" ;;
-        vendor)     FILE="$EXTRACTED_FIRM_DIR/vendor/build.prop" ;;
-        product)    FILE="$EXTRACTED_FIRM_DIR/product/etc/build.prop" ;;
-        system_ext) FILE="$EXTRACTED_FIRM_DIR/system_ext/etc/build.prop" ;;
-        odm)        FILE="$EXTRACTED_FIRM_DIR/odm/etc/build.prop" ;;
-        *)          return 1 ;;
+        system)
+            FILE="$EXTRACTED_FIRM_DIR/system/system/build.prop"
+            ;;
+        vendor)
+            FILE="$EXTRACTED_FIRM_DIR/vendor/build.prop"
+            ;;
+        product)
+            FILE="$EXTRACTED_FIRM_DIR/product/etc/build.prop"
+            ;;
+        system_ext)
+            FILE="$EXTRACTED_FIRM_DIR/system_ext/etc/build.prop"
+            ;;
+        odm)
+            FILE="$EXTRACTED_FIRM_DIR/odm/etc/build.prop"
+            ;;
+        *)
+            echo -e "Unknown partition: $PARTITION"
+            return 1
+            ;;
     esac
 
-    [[ ! -f "$FILE" ]] && return 1
-    grep -m1 "^${PROP}=" "$FILE" | cut -d'=' -f2-
+    if [ ! -f "$FILE" ]; then
+        echo -e "$FILE not found."
+        return 1
+    fi
+
+    local VALUE
+    VALUE=$(grep -m1 "^${PROP}=" "$FILE" | cut -d'=' -f2-)
+
+    if [ -z "$VALUE" ]; then
+        return 1
+    fi
+
+    echo -e "$VALUE"
 }
 
+
 DOWNLOAD_FIRMWARE() {
-    [[ "$#" -lt 4 ]] && return 1
-    local MODEL="$1" CSC="$2" DOWN_DIR="${4}/$MODEL"
+    if [ "$#" -lt 4 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <MODEL> <CSC> <IMEI> <DOWNLOAD_DIRECTORY> [VERSION]"
+        return 1
+    fi
+
+    local MODEL="$1"
+    local CSC="$2"
+    local IMEI="$3"
+    local DOWN_DIR="${4}/$MODEL"
+    local VERSION="${5:-}"
+
+    rm -rf "$DOWN_DIR"
+    mkdir -p "$DOWN_DIR"
+
+    echo -e "======================================"
+    echo -e "${YELLOW}  Samsung FW Downloader (SamFW)  ${NC}"
+    echo -e "======================================"
+    echo -e "MODEL: $MODEL | CSC: $CSC"
+
+    # Download using SamFW direct link (passed via env var)
+    echo -e "- Downloading firmware via SamFW..."
     
-    rm -rf "$DOWN_DIR" && mkdir -p "$DOWN_DIR"
-    echo -e "${YELLOW}Samsung FW Downloader (SamFW)${NC}"
+    if [ -z "$SAMFW_URL" ]; then
+        echo -e "- SAMFW_URL not set!"
+        return 1
+    fi
     
-    [[ -z "$SAMFW_URL" ]] && { echo "- SAMFW_URL not set!"; return 1; }
+    wget --no-check-certificate -O "$DOWN_DIR/firmware.zip" "$SAMFW_URL" 2>&1 | tail -3
     
-    wget --no-check-certificate -q --show-progress -O "$DOWN_DIR/firmware.zip" "$SAMFW_URL"
-    [[ $? -ne 0 ]] && return 1
+    if [ $? -ne 0 ] || [ ! -f "$DOWN_DIR/firmware.zip" ]; then
+        echo -e "- Download failed. Check URL."
+        return 1
+    fi
+
+    # Show firmware info
+    file_size=$(du -m "$DOWN_DIR/firmware.zip" | cut -f1)
+    echo -e "- Firmware downloaded successfully! Size: ${file_size} MB"
     echo -e "- Saved to: $DOWN_DIR/firmware.zip"
 }
 
+
 EXTRACT_FIRMWARE() {
+    if [ "$#" -ne 1 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <FIRMWARE_DIRECTORY>"
+        return 1
+    fi
+
     local FIRM_DIR="$1"
+
     echo -e "${YELLOW}Extracting downloaded firmware.${NC}"
 
-    # Extracting Zips and XZs
-    for file in "$FIRM_DIR"/*.{zip,xz}; do
-        [[ -f "$file" ]] || continue
-        7z x -y -bd -o"$FIRM_DIR" "$file" >/dev/null 2>&1 && rm -f "$file"
+    # ---- ZIP ----
+    for file in "$FIRM_DIR"/*.zip; do
+        if [ -f "$file" ]; then
+            echo -e "- Extracting zip: $(basename "$file")"
+            7z x -y -bd -o"$FIRM_DIR" "$file" >/dev/null 2>&1
+            rm -f "$file"
+        fi
     done
 
-    # MD5 rename
+    # ---- XZ ----
+    for file in "$FIRM_DIR"/*.xz; do
+        if [ -f "$file" ]; then
+            echo -e "- Extracting xz: $(basename "$file")"
+            7z x -y -bd -o"$FIRM_DIR" "$file" >/dev/null 2>&1
+            rm -f "$file"
+        fi
+    done
+
+    # ---- MD5 rename ----
     for file in "$FIRM_DIR"/*.md5; do
-        [[ -f "$file" ]] && mv -- "$file" "${file%.md5}"
+        if [ -f "$file" ]; then
+            mv -- "$file" "${file%.md5}"
+        fi
     done
 
-    # Tar extraction
+    # ---- TAR ----
     for file in "$FIRM_DIR"/*.tar; do
-        [[ -f "$file" ]] || continue
-        tar -xf "$file" -C "$FIRM_DIR" && rm -f "$file"
+        if [ -f "$file" ]; then
+            echo -e "- Extracting tar: $(basename "$file")"
+            tar -xvf "$file" -C "$FIRM_DIR" >/dev/null 2>&1
+            rm -f "$file"
+        fi
     done
 
-    # Optimized LZ4 Cleanup & Extraction
-    # Removing unwanted lz4 first in bulk
-    find "$FIRM_DIR" -maxdepth 1 -type f \( -name "cache.img.lz4" -o -name "userdata.img.lz4" -o -name "recovery.img.lz4" -o -name "init_boot.img.lz4" \) -delete
-    
+    # ---- LZ4 ----
+    rm -rf $FIRM_DIR/{cache.img.lz4,dtbo.img.lz4,efuse.img.lz4,gz-verified.img.lz4,lk-verified.img.lz4,md1img.img.lz4,md_udc.img.lz4,misc.bin.lz4,omr.img.lz4,param.bin.lz4,preloader.img.lz4,recovery.img.lz4,scp-verified.img.lz4,spmfw-verified.img.lz4,sspm-verified.img.lz4,tee-verified.img.lz4,tzar.img.lz4,up_param.bin.lz4,userdata.img.lz4,vbmeta.img.lz4,vbmeta_system.img.lz4,audio_dsp-verified.img.lz4,cam_vpu1-verified.img.lz4,cam_vpu2-verified.img.lz4,cam_vpu3-verified.img.lz4,dpm-verified.img.lz4,init_boot.img.lz4,mcupm-verified.img.lz4,pi_img-verified.img.lz4,uh.bin.lz4,vendor_boot.img.lz4}
     for file in "$FIRM_DIR"/*.lz4; do
-        [[ -f "$file" ]] || continue
-        lz4 -dq "$file" "${file%.lz4}" && rm -f "$file"
+        if [ -f "$file" ]; then
+            echo -e "- Extracting lz4: $(basename "$file")"
+            lz4 -d "$file" "${file%.lz4}" >/dev/null 2>&1
+            rm -f "$file"
+        fi
     done
 
-    # Clean unwanted files
-    rm -rf "$FIRM_DIR"/*.{txt,pit,bin} "$FIRM_DIR"/meta-data
+    # ---- REMOVE UNWANTED FILES ----
+    rm -rf \
+        "$FIRM_DIR"/*.txt \
+        "$FIRM_DIR"/*.pit \
+        "$FIRM_DIR"/*.bin \
+        "$FIRM_DIR"/meta-data
 
+    # ---- SUPER.IMG ----
     if [ -f "$FIRM_DIR/super.img" ]; then
-        simg2img "$FIRM_DIR/super.img" "$FIRM_DIR/super_raw.img" && rm -f "$FIRM_DIR/super.img"
-        "$BIN_PATH/lp/lpunpack" "$FIRM_DIR/super_raw.img" "$FIRM_DIR" && rm -f "$FIRM_DIR/super_raw.img"
+        echo -e "- Extracting super.img"
+        simg2img "$FIRM_DIR/super.img" "$FIRM_DIR/super_raw.img"
+        rm -f "$FIRM_DIR/super.img"
+
+        "$(pwd)/bin/lp/lpunpack" "$FIRM_DIR/super_raw.img" "$FIRM_DIR"
+        rm -f "$FIRM_DIR/super_raw.img"
+
+        echo -e "- Extraction complete"
     fi
 }
 
-PREPARE_PARTITIONS() {
-    local EXTRACTED_FIRM_DIR="$1"
-    [[ -z "$STOCK_DEVICE" || "$STOCK_DEVICE" = "None" ]] && export BUILD_PARTITIONS="odm,product,system_ext,system,vendor,odm_a,product_a,system_ext_a,system_a,vendor_a"
 
-    IFS=',' read -r -a KEEP_ARRAY <<< "$BUILD_PARTITIONS"
-    declare -A KEEP_MAP
-    for k in "${KEEP_ARRAY[@]}"; do KEEP_MAP[$(echo $k | xargs)]="1"; done
+PREPARE_PARTITIONS() {
+    if [ -z "$STOCK_DEVICE" ] || [ "$STOCK_DEVICE" = "None" ]; then
+        export BUILD_PARTITIONS="odm,product,system_ext,system,vendor,odm_a,product_a,system_ext_a,system_a,vendor_a"
+    fi
+
+    if [ "$#" -ne 1 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <EXTRACTED_FIRM_DIR>"
+        return 1
+    fi
+
+    local EXTRACTED_FIRM_DIR="$1"
+
+    [[ -z "$EXTRACTED_FIRM_DIR" || ! -d "$EXTRACTED_FIRM_DIR" ]] && {
+        echo -e "Invalid directory: $EXTRACTED_FIRM_DIR"
+        return 1
+    }
+
+    IFS=',' read -r -a KEEP <<< "$BUILD_PARTITIONS"
+
+    for i in "${!KEEP[@]}"; do
+        KEEP[$i]=$(echo -e "${KEEP[$i]}" | xargs)
+    done
 
     echo -e "${YELLOW}Preparing partitions.${NC}"
+
     find "$EXTRACTED_FIRM_DIR" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +
 
+    shopt -s nullglob dotglob
+
     for item in "$EXTRACTED_FIRM_DIR"/*; do
-        base=${item##*/}
-        base_name=${base%.img}
-        [[ -z "${KEEP_MAP[$base_name]}" ]] && rm -rf "$item"
+        base=$(basename "$item")
+
+        [[ "$base" == *.img ]] && base="${base%.img}"
+
+        keep_this=0
+        for k in "${KEEP[@]}"; do
+            [[ "$k" == "$base" ]] && keep_this=1 && break
+        done
+
+        if [[ $keep_this -eq 0 ]]; then
+            rm -rf -- "$item"
+        fi
     done
+
+    shopt -u nullglob dotglob
 }
 
+
 EXTRACT_FIRMWARE_IMG() {
+    echo -e ""
+
+    if [ "$#" -ne 1 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <FIRMWARE_DIRECTORY>"
+        return 1
+    fi
+
     local FIRM_DIR="$1"
+
     PREPARE_PARTITIONS "$FIRM_DIR"
 
+    echo -e "${YELLOW}Extracting images from:${NC} $FIRM_DIR"
+
     for imgfile in "$FIRM_DIR"/*.img; do
-        [[ -e "$imgfile" ]] || continue
-        [[ "${imgfile##*/}" == "boot.img" ]] && continue
+        [ -e "$imgfile" ] || continue
 
-        local partition="${imgfile##*/}"
-        partition="${partition%.img}"
-        local fstype=$(blkid -o value -s TYPE "$imgfile" || file -b "$imgfile" | cut -d' ' -f1 | tr '[:upper:]' '[:lower:]')
+        if [[ "$(basename "$imgfile")" == "boot.img" ]]; then
+            continue
+        fi
 
-        rm -rf "$FIRM_DIR/$partition"
+        local partition
+        local fstype
+        local IMG_SIZE
+
+        partition="$(basename "${imgfile%.img}")"
+        fstype=$(blkid -o value -s TYPE "$imgfile")
+        [ -z "$fstype" ] && fstype=$(file -b "$imgfile")
+
         case "$fstype" in
-            *ext4*)
-                python3 "$BIN_PATH/py_scripts/imgextractor.py" "$imgfile" "$FIRM_DIR" ;;
-            *erofs*)
-                "$BIN_PATH/erofs-utils/extract.erofs" -i "$imgfile" -x -f -o "$FIRM_DIR" >/dev/null 2>&1 ;;
-            *f2fs*)
-                bash "scripts/convert_to_ext4.sh" "$imgfile"
-                python3 "$BIN_PATH/py_scripts/imgextractor.py" "$imgfile" "$FIRM_DIR" ;;
+            ext4)
+                IMG_SIZE=$(stat -c%s -- "$imgfile")
+                echo -e "- $partition.img Detected ext4. Size: $IMG_SIZE bytes. Extracting..."
+
+                rm -rf "$FIRM_DIR/$partition"
+                python3 "$(pwd)/bin/py_scripts/imgextractor.py" "$imgfile" "$FIRM_DIR"
+                ;;
+
+            erofs)
+                IMG_SIZE=$(stat -c%s -- "$imgfile")
+                echo -e "- $partition.img Detected erofs. Size: $IMG_SIZE bytes. Extracting..."
+
+                rm -rf "$FIRM_DIR/$partition"
+                "$(pwd)/bin/erofs-utils/extract.erofs" -i "$imgfile" -x -f -o "$FIRM_DIR" >/dev/null 2>&1
+                ;;
+
+            f2fs)
+                IMG_SIZE=$(stat -c%s -- "$imgfile")
+                echo -e "- $partition.img Detected f2fs. Size: $IMG_SIZE bytes. Converting to ext4"
+                bash "$(pwd)/scripts/convert_to_ext4.sh" "$imgfile"
+
+                rm -rf "$FIRM_DIR/$partition"
+                python3 "$(pwd)/bin/py_scripts/imgextractor.py" "$imgfile" "$FIRM_DIR"
+                ;;
+            *)
+                echo -e "- $partition.img unsupported filesystem type ($fstype), skipping"
+                continue
+                ;;
         esac
     done
+
     rm -rf "$FIRM_DIR"/*.img
+
+    if ! ls "$FIRM_DIR"/system* >/dev/null 2>&1; then
+        echo -e "Firmware may be corrupt or unsupported."
+        exit 1
+    fi
+
     chown -R "$REAL_USER:$REAL_USER" "$FIRM_DIR"
     chmod -R u+rwX "$FIRM_DIR"
 }
 
-# Keeping your exact DEBLOAT_APPS list
+
+FIX_SYSTEM_EXT() {
+    if [ "$#" -ne 1 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <EXTRACTED_FIRM_DIR>"
+        return 1
+    fi
+
+    local EXTRACTED_FIRM_DIR="$1"
+
+    if [ "$STOCK_HAS_SEPARATE_SYSTEM_EXT" = "TRUE" ] && [ -d "$EXTRACTED_FIRM_DIR/system_ext" ]; then
+        export TARGET_ROM_SYSTEM_EXT_DIR="$EXTRACTED_FIRM_DIR/system_ext"
+        return 1
+    fi
+
+    if [ "$STOCK_HAS_SEPARATE_SYSTEM_EXT" = "FALSE" ] && [[ -d "$EXTRACTED_FIRM_DIR/system_ext" ]]; then
+        echo -e "- Copying system_ext content into system root"
+        rm -rf "$EXTRACTED_FIRM_DIR/system/system_ext"
+        cp -a --preserve=all "$EXTRACTED_FIRM_DIR/system_ext" "$EXTRACTED_FIRM_DIR/system"
+
+        echo -e "- Cleaning and merging system_ext file contexts and configs"
+        SYSTEM_EXT_CONFIG_FILE="$EXTRACTED_FIRM_DIR/config/system_ext_fs_config"
+        SYSTEM_EXT_CONTEXTS_FILE="$EXTRACTED_FIRM_DIR/config/system_ext_file_contexts"
+
+        SYSTEM_CONFIG_FILE="$EXTRACTED_FIRM_DIR/config/system_fs_config"
+        SYSTEM_CONTEXTS_FILE="$EXTRACTED_FIRM_DIR/config/system_file_contexts"
+
+        SYSTEM_EXT_TEMP_CONFIG="${SYSTEM_EXT_CONFIG_FILE}.tmp"
+        SYSTEM_EXT_TEMP_CONTEXTS="${SYSTEM_EXT_CONTEXTS_FILE}.tmp"
+
+        grep -v '^/ u:object_r:system_file:s0$' "$SYSTEM_EXT_CONTEXTS_FILE" \
+        | grep -v '^/system_ext u:object_r:system_file:s0$' \
+        | grep -v '^/system_ext(.*)? u:object_r:system_file:s0$' \
+        | grep -v '^/system_ext/ u:object_r:system_file:s0$' \
+        > "$SYSTEM_EXT_TEMP_CONTEXTS" && mv "$SYSTEM_EXT_TEMP_CONTEXTS" "$SYSTEM_EXT_CONTEXTS_FILE"
+
+        grep -v '^/ 0 0 0755$' "$SYSTEM_EXT_CONFIG_FILE" \
+        | grep -v '^system_ext/ 0 0 0755$' \
+        | grep -v '^system_ext/lost+found 0 0 0755$' \
+        > "$SYSTEM_EXT_TEMP_CONFIG" && mv "$SYSTEM_EXT_TEMP_CONFIG" "$SYSTEM_EXT_CONFIG_FILE"
+
+        awk '{print "system/" $0}' "$SYSTEM_EXT_CONFIG_FILE" \
+        > "$SYSTEM_EXT_TEMP_CONFIG" && mv "$SYSTEM_EXT_TEMP_CONFIG" "$SYSTEM_EXT_CONFIG_FILE"
+
+        awk '{print "/system" $0}' "$SYSTEM_EXT_CONTEXTS_FILE" \
+        > "$SYSTEM_EXT_TEMP_CONTEXTS" && mv "$SYSTEM_EXT_TEMP_CONTEXTS" "$SYSTEM_EXT_CONTEXTS_FILE"
+
+        cat "$SYSTEM_EXT_CONFIG_FILE" >> "$SYSTEM_CONFIG_FILE"
+        cat "$SYSTEM_EXT_CONTEXTS_FILE" >> "$SYSTEM_CONTEXTS_FILE"
+
+        export TARGET_ROM_SYSTEM_EXT_DIR="$EXTRACTED_FIRM_DIR/system/system_ext"
+
+        rm -rf "$EXTRACTED_FIRM_DIR/system_ext"
+        rm -rf "$EXTRACTED_FIRM_DIR/config/system_ext_fs_config"
+        rm -rf "$EXTRACTED_FIRM_DIR/config/system_ext_file_contexts"
+    else
+        if [ -d "$EXTRACTED_FIRM_DIR/system/system_ext/apex" ]; then
+            export TARGET_ROM_SYSTEM_EXT_DIR="$EXTRACTED_FIRM_DIR/system/system_ext"
+        elif [ -d "$EXTRACTED_FIRM_DIR/system/system/system_ext/apex" ]; then
+            export TARGET_ROM_SYSTEM_EXT_DIR="$EXTRACTED_FIRM_DIR/system/system/system_ext"
+        fi
+    fi
+}
+
+
+FIX_SELINUX() {
+    if [ "$#" -ne 1 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <EXTRACTED_FIRM_DIR>"
+        return 1
+    fi
+
+    echo -e "- Fixing selinux"
+
+    local EXTRACTED_FIRM_DIR="$1"
+
+    if [ -d "$EXTRACTED_FIRM_DIR/system_ext/apex" ]; then
+        export TARGET_ROM_SYSTEM_EXT_DIR="$EXTRACTED_FIRM_DIR/system_ext"
+    elif [ -d "$EXTRACTED_FIRM_DIR/system/system_ext/apex" ]; then
+        export TARGET_ROM_SYSTEM_EXT_DIR="$EXTRACTED_FIRM_DIR/system/system_ext"
+    elif [ -d "$EXTRACTED_FIRM_DIR/system/system/system_ext/apex" ]; then
+        export TARGET_ROM_SYSTEM_EXT_DIR="$EXTRACTED_FIRM_DIR/system/system/system_ext"
+    fi
+
+    if [ -n "$STOCK_VNDK_VERSION" ]; then
+        SELINUX_FILE="$TARGET_ROM_SYSTEM_EXT_DIR/etc/selinux/mapping/${STOCK_VNDK_VERSION}.0.cil"
+    else
+        MANIFEST_FILE="$TARGET_ROM_SYSTEM_EXT_DIR/etc/vintf/manifest.xml"
+
+        if [ ! -f "$MANIFEST_FILE" ]; then
+            echo -e "- manifest.xml not found. Cannot determine VNDK version."
+            return 1
+        fi
+
+        STOCK_VNDK_VERSION=$(grep -oP '(?<=<version>)[0-9]+' "$MANIFEST_FILE" | head -n1)
+
+        if [ -z "$STOCK_VNDK_VERSION" ]; then
+            echo -e "- Failed to extract VNDK version from manifest."
+            return 1
+        fi
+
+        SELINUX_FILE="$TARGET_ROM_SYSTEM_EXT_DIR/etc/selinux/mapping/${STOCK_VNDK_VERSION}.0.cil"
+    fi
+
+    echo -e "- Using SELinux mapping file: $SELINUX_FILE"
+
+    if [ ! -f "$SELINUX_FILE" ]; then
+        echo -e "- Error: SELinux file not found at $SELINUX_FILE"
+        exit 1
+    fi
+
+    UNSUPPORTED_SELINUX=("audiomirroring" "fabriccrypto" "hal_dsms_default" "qb_id_prop" "hal_dsms_service" "proc_compaction_proactiveness" "sbauth" "ker_app" "kpp_app" "kpp_data" "attiqi_app" "kpoc_charger" "sec_diag")
+
+    for keyword in "${UNSUPPORTED_SELINUX[@]}"; do
+        if grep -q "$keyword" "$SELINUX_FILE"; then
+            sed -i "/$keyword/d" "$SELINUX_FILE"
+        fi
+    done
+
+    REMOVE_LINE '(genfscon sysfs "/bus/usb/devices" (u object_r sysfs_usb ((s0) (s0))))' "$EXTRACTED_FIRM_DIR/system/system/etc/selinux/plat_sepolicy.cil" >/dev/null 2>&1
+    REMOVE_LINE '(genfscon proc "/sys/vm/compaction_proactiveness" (u object_r proc_compaction_proactiveness ((s0) (s0))))' "$EXTRACTED_FIRM_DIR/system/system/etc/selinux/plat_sepolicy.cil" >/dev/null 2>&1
+    REMOVE_LINE '(genfscon proc "/sys/kernel/firmware_config" (u object_r proc_fmw ((s0) (s0))))' "$TARGET_ROM_SYSTEM_EXT_DIR/etc/selinux/system_ext_sepolicy.cil" >/dev/null 2>&1
+    REMOVE_LINE '(genfscon proc "/sys/vm/compaction_proactiveness" (u object_r proc_compaction_proactiveness ((s0) (s0))))' "$TARGET_ROM_SYSTEM_EXT_DIR/etc/selinux/system_ext_sepolicy.cil" >/dev/null 2>&1
+    REMOVE_LINE 'init.svc.vendor.wvkprov_server_hal                           u:object_r:wvkprov_prop:s0' "$TARGET_ROM_SYSTEM_EXT_DIR/etc/selinux/system_ext_property_contexts" >/dev/null 2>&1
+}
+
+
+FIX_VNDK() {
+    echo -e "- Checking VNDK version."
+    export SDK="$(GET_PROP "$EXTRACTED_FIRM_DIR" "system" ro.build.version.sdk)"
+    echo -e "- Target ROM SDK version: $SDK"
+    if [ -f "$TARGET_ROM_SYSTEM_EXT_DIR/apex/com.android.vndk.v${STOCK_VNDK_VERSION}.apex" ]; then
+        echo -e "- VNDK matched."
+    else
+        echo -e "- VNDK mismatch. Adding SDK $SDK com.android.vndk.v${STOCK_VNDK_VERSION}.apex"
+        rm -rf "$TARGET_ROM_SYSTEM_EXT_DIR/apex/"*.apex
+        cp -rfa "$VNDKS_COLLECTION/$SDK/$STOCK_VNDK_VERSION/system_ext/"* "$TARGET_ROM_SYSTEM_EXT_DIR/"
+    fi
+}
+
+
+###################################################################################################
+# DEBLOAT SYSTEM (STOCK CONFIG - RE-ENABLED)
+###################################################################################################
+
 DEBLOAT_APPS=(
     "HMT" "PaymentFramework" "SamsungCalendar" "LiveTranscribe" "DigitalWellbeing" "Maps" "Duo" "Photos" "FactoryCameraFB" "WlanTest" "AssistantShell" "BardShell" "DuoStub" "GoogleCalendarSyncAdapter" "AndroidDeveloperVerifier" "AndroidGlassesCore" "SOAgent77" "YourPhone_Stub" "AndroidAutoStub" "SingleTakeService" "SamsungBilling" "AndroidSystemIntelligence" "GoogleRestore" "Messages" "SearchSelector" "AirGlance" "AirReadingGlass" "SamsungTTS" "WlanTest" "ARCore" "ARDrawing" "ARZone" "BGMProvider" "BixbyWakeup" "BlockchainBasicKit" "Cameralyzer" "DictDiotekForSec" "EasymodeContactsWidget81" "Fast" "FBAppManager_NS" "FunModeSDK" "GearManagerStub" "KidsHome_Installer" "LinkSharing_v11" "LiveDrawing" "MAPSAgent" "MdecService" "MinusOnePage" "MoccaMobile" "Netflix_stub" "Notes40" "ParentalCare" "PhotoTable" "PlayAutoInstallConfig" "SamsungPassAutofill_v1" "SmartReminder" "SmartSwitchStub" "UnifiedWFC" "UniversalMDMClient" "VideoEditorLite_Dream_N" "VisionIntelligence3.7" "VoiceAccess" "VTCameraSetting" "WebManual" "WifiGuider" "KTAuth" "KTCustomerService" "KTUsimManager" "LGUMiniCustomerCenter" "LGUplusTsmProxy" "SketchBook" "SKTMemberShip_new" "SktUsimService" "TWorld" "AirCommand" "AppUpdateCenter" "AREmoji" "AREmojiEditor" "AuthFramework" "AutoDoodle" "AvatarEmojiSticker" "AvatarEmojiSticker_S" "Bixby" "BixbyInterpreter" "BixbyVisionFramework3.5" "DevGPUDriver-EX2200" "DigitalKey" "Discover" "DiscoverSEP" "EarphoneTypeC" "EasySetup" "FBInstaller_NS" "FBServices" "FotaAgent" "GalleryWidget" "GameDriver-EX2100" "GameDriver-EX2200" "GameDriver-SM8150" "HashTagService" "MultiControlVP6" "LedCoverService" "LinkToWindowsService" "LiveStickers" "MemorySaver_O_Refresh" "MultiControl" "OMCAgent5" "OneDrive_Samsung_v3" "OneStoreService" "SamsungCarKeyFw" "SamsungPass" "SamsungSmartSuggestions" "SettingsBixby" "SetupIndiaServicesTnC" "SKTFindLostPhone" "SKTHiddenMenu" "SKTMemberShip" "SKTOneStore" "SktUsimService" "SmartEye" "SmartPush" "SmartThingsKit" "SmartTouchCall" "SOAgent7" "SOAgent75" "SolarAudio-service" "SPPPushClient" "sticker" "StickerFaceARAvatar" "StoryService" "SumeNNService" "SVoiceIME" "SwiftkeyIme" "SwiftkeySetting" "SystemUpdate" "TADownloader" "TalkbackSE" "TaPackAuthFw" "TPhoneOnePackage" "TPhoneSetup" "TWorld" "UltraDataSaving_O" "Upday" "UsimRegistrationKOR" "YourPhone_P1_5" "AvatarPicker" "GpuWatchApp" "KT114Provider2" "KTHiddenMenu" "KTOneStore" "KTServiceAgent" "KTServiceMenu" "LGUGPSnWPS" "LGUHiddenMenu" "LGUOZStore" "SKTFindLostPhoneApp" "SmartPush_64" "SOAgent76" "TService" "vexfwk_service" "VexScanner" "LiveEffectService" "YourPhone_P1_5" "vexfwk_service"
 )
 
 KICK() {
+    if [ "$#" -ne 1 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <EXTRACTED_FIRM_DIR>"
+        return 1
+    fi
+
     local EXTRACTED_FIRM_DIR="$1"
+
     echo -e "- Debloating apps."
-    # Build regex pattern for fast deletion
-    local pattern=$(IFS="|"; echo "${DEBLOAT_APPS[*]}")
-    
     local APP_DIRS=(
         "$EXTRACTED_FIRM_DIR/system/system/app"
         "$EXTRACTED_FIRM_DIR/system/system/priv-app"
@@ -160,115 +476,245 @@ KICK() {
         "$EXTRACTED_FIRM_DIR/product/priv-app"
     )
 
-    for dir in "${APP_DIRS[@]}"; do
-        [[ -d "$dir" ]] || continue
-        find "$dir" -maxdepth 1 -regextype posix-extended -regex ".*/($pattern)" -exec rm -rf {} +
-    done
-}
+    for app in "${DEBLOAT_APPS[@]}"; do
+        for dir in "${APP_DIRS[@]}"; do
+            target="$dir/$app"
 
-# ALL YOUR REMOVE FUNCTIONS KEPT EXACTLY THE SAME
-REMOVE_ESIM_FILES() {
-    local DIR="$1"
-    echo -e "- Removing ESIM files."
-    rm -rf "$DIR/system/system/etc/autoinstalls/autoinstalls-com.google.android.euicc"
-    rm -rf "$DIR/system/system/etc/default-permissions/default-permissions-com.google.android.euicc.xml"
-    rm -rf "$DIR/system/system/etc/permissions/privapp-permissions-com.samsung.euicc.xml"
-    rm -rf "$DIR/system/system/etc/permissions/privapp-permissions-com.samsung.android.app.esimkeystring.xml"
-    rm -rf "$DIR/system/system/etc/permissions/privapp-permissions-com.samsung.android.app.telephonyui.esimclient.xml"
-    rm -rf "$DIR/system/system/etc/privapp-permissions-com.samsung.android.app.telephonyui.esimclient.xml"
-    rm -rf "$DIR/system/system/etc/sysconfig/preinstalled-packages-com.samsung.euicc.xml"
-    rm -rf "$DIR/system/system/etc/sysconfig/preinstalled-packages-com.samsung.android.app.esimkeystring.xml"
-    rm -rf "$DIR/system/system/priv-app/EsimClient"
-    rm -rf "$DIR/system/system/priv-app/EsimKeyString"
-    rm -rf "$DIR/system/system/priv-app/EuiccService"
-    rm -rf "$DIR/system/system/priv-app/EuiccGoogle"
-}
-
-REMOVE_FABRIC_CRYPTO() {
-    local DIR="$1"
-    echo -e "- Removing fabric crypto."
-    rm -rf "$DIR/system/system/bin/fabric_crypto"
-    rm -rf "$DIR/system/system/etc/init/fabric_crypto.rc"
-    rm -rf "$DIR/system/system/etc/permissions/FabricCryptoLib.xml"
-    rm -rf "$DIR/system/system/etc/vintf/manifest/fabric_crypto_manifest.xml"
-    rm -rf "$DIR/system/system/framework/FabricCryptoLib.jar"
-    rm -rf "$DIR/system/system/framework/oat/arm/FabricCryptoLib.odex"
-    rm -rf "$DIR/system/system/framework/oat/arm/FabricCryptoLib.vdex"
-    rm -rf "$DIR/system/system/framework/oat/arm64/FabricCryptoLib.odex"
-    rm -rf "$DIR/system/system/framework/oat/arm64/FabricCryptoLib.vdex"
-    rm -rf "$DIR/system/system/lib64/com.samsung.security.fabric.cryptod-V1-cpp.so"
-    rm -rf "$DIR/system/system/lib64/vendor.samsung.hardware.security.fkeymaster-V1-ndk.so"
-    rm -rf "$DIR/system/system/priv-app/KmxService"
-}
-
-DEBLOAT() {
-    local EXTRACTED_FIRM_DIR="$1"
-    echo -e "${YELLOW}Debloating apps and files.${NC}"
-    KICK "$EXTRACTED_FIRM_DIR"
-    REMOVE_ESIM_FILES "$EXTRACTED_FIRM_DIR"
-    REMOVE_FABRIC_CRYPTO "$EXTRACTED_FIRM_DIR"
-    # Keeping all your manual rm lines
-    rm -rf "$EXTRACTED_FIRM_DIR/system/system/app"/SamsungTTS*
-    rm -rf "$EXTRACTED_FIRM_DIR/system/system/hidden"
-    rm -rf "$EXTRACTED_FIRM_DIR/system/system/preload"
-    rm -rf "$EXTRACTED_FIRM_DIR/system/system/tts"
-    # ... (all other manual lines stay here)
-}
-
-# THE HIGH-SPEED ENGINE FOR IMAGE BUILDING
-GEN_FS_CONFIG() {
-    local EXTRACTED_FIRM_DIR="$1"
-    for ROOT in "$EXTRACTED_FIRM_DIR"/*; do
-        [[ ! -d "$ROOT" || "${ROOT##*/}" == "config" ]] && continue
-        local PARTITION="${ROOT##*/}"
-        local FS_CONFIG="$EXTRACTED_FIRM_DIR/config/${PARTITION}_fs_config"
-        
-        # Load existing into RAM map for O(1) speed
-        declare -A EXISTING_MAP
-        [[ -f "$FS_CONFIG" ]] && while read -r line; do EXISTING_MAP["${line%% *}"]="1"; done < "$FS_CONFIG"
-
-        echo -e "${YELLOW}Generating fs_config for:${NC} $PARTITION"
-        find "$ROOT" -mindepth 1 \( -type f -o -type d -o -type l \) | while read -r item; do
-            local ENTRY="$PARTITION/${item#$ROOT/}"
-            [[ -n "${EXISTING_MAP[$ENTRY]}" ]] && continue
-
-            if [[ -d "$item" ]]; then
-                printf "%s 0 0 0755\n" "$ENTRY" >> "$FS_CONFIG"
-            elif [[ "$ENTRY" == */bin/* ]]; then
-                printf "%s 0 2000 0755\n" "$ENTRY" >> "$FS_CONFIG"
-            else
-                printf "%s 0 0 0644\n" "$ENTRY" >> "$FS_CONFIG"
+            if [[ -d "$target" ]]; then
+                rm -rf "$target" || echo -e "[WARN] Failed to remove $target"
             fi
         done
     done
 }
 
-GEN_FILE_CONTEXTS() {
+REMOVE_ESIM_FILES() {
+    if [ "$#" -ne 1 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <EXTRACTED_FIRM_DIR>"
+        return 1
+    fi
+
     local EXTRACTED_FIRM_DIR="$1"
+    echo -e "- Removing ESIM files."
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/autoinstalls/autoinstalls-com.google.android.euicc"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/default-permissions/default-permissions-com.google.android.euicc.xml"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/permissions/privapp-permissions-com.samsung.euicc.xml"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/permissions/privapp-permissions-com.samsung.android.app.esimkeystring.xml"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/permissions/privapp-permissions-com.samsung.android.app.telephonyui.esimclient.xml"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/privapp-permissions-com.samsung.android.app.telephonyui.esimclient.xml"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/sysconfig/preinstalled-packages-com.samsung.euicc.xml"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/sysconfig/preinstalled-packages-com.samsung.android.app.esimkeystring.xml"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/priv-app/EsimClient"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/priv-app/EsimKeyString"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/priv-app/EuiccService"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/priv-app/EuiccGoogle"
+}
+
+REMOVE_FABRIC_CRYPTO() {
+    if [ "$#" -ne 1 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <EXTRACTED_FIRM_DIR>"
+        return 1
+    fi
+
+    local EXTRACTED_FIRM_DIR="$1"
+    echo -e "- Removing fabric crypto."
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/bin/fabric_crypto"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/init/fabric_crypto.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/permissions/FabricCryptoLib.xml"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/vintf/manifest/fabric_crypto_manifest.xml"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/framework/FabricCryptoLib.jar"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/framework/oat/arm/FabricCryptoLib.odex"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/framework/oat/arm/FabricCryptoLib.vdex"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/framework/oat/arm64/FabricCryptoLib.odex"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/framework/oat/arm64/FabricCryptoLib.vdex"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/lib64/com.samsung.security.fabric.cryptod-V1-cpp.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/lib64/vendor.samsung.hardware.security.fkeymaster-V1-ndk.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/priv-app/KmxService"
+}
+
+DEBLOAT() {
+    if [ "$#" -ne 1 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <EXTRACTED_FIRM_DIR>"
+        return 1
+    fi
+
+    local EXTRACTED_FIRM_DIR="$1"
+    echo -e "${YELLOW}Debloating apps and files.${NC}"
+    
+    KICK "$EXTRACTED_FIRM_DIR"
+    REMOVE_ESIM_FILES "$EXTRACTED_FIRM_DIR"
+    REMOVE_FABRIC_CRYPTO "$EXTRACTED_FIRM_DIR"
+    
+    echo -e "- Deleting unnecessary files and folders."
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/app"/SamsungTTS*
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/init/boot-image.bprof"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/init/boot-image.prof"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/mediasearch"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/hidden"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/preload"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/priv-app/MediaSearch"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/priv-app"/GameDriver-*
+    rm -rf "$EXTRACTED_FIRM_DIR/system/system/tts"
+    rm -rf "$EXTRACTED_FIRM_DIR/product/app/Gmail2/oat"
+    rm -rf "$EXTRACTED_FIRM_DIR/product/app/Maps/oat"
+    rm -rf "$EXTRACTED_FIRM_DIR/product/app/SpeechServicesByGoogle/oat"
+    rm -rf "$EXTRACTED_FIRM_DIR/product/app/YouTube/oat"
+    rm -rf "$EXTRACTED_FIRM_DIR/product/priv-app"/HotwordEnrollment*
+    
+    echo -e "- Debloat complete"
+}
+
+
+###################################################################################################
+# IMAGE BUILDING
+###################################################################################################
+
+GEN_FS_CONFIG() {
+    if [ "$#" -ne 1 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <EXTRACTED_FIRM_DIR>"
+        return 1
+    fi
+
+    local EXTRACTED_FIRM_DIR="$1"
+
+    [ ! -d "$EXTRACTED_FIRM_DIR" ] && {
+        echo -e "- $EXTRACTED_FIRM_DIR not found."
+        return 1
+    }
+
+    [ ! -d "$EXTRACTED_FIRM_DIR/config" ] && {
+        echo -e "[ERROR] config directory missing"
+        return 1
+    }
+
     for ROOT in "$EXTRACTED_FIRM_DIR"/*; do
-        [[ ! -d "$ROOT" || "${ROOT##*/}" == "config" ]] && continue
-        local PARTITION="${ROOT##*/}"
-        local FILE_CONTEXTS="$EXTRACTED_FIRM_DIR/config/${PARTITION}_file_contexts"
-        
-        declare -A EXISTING_MAP
-        [[ -f "$FILE_CONTEXTS" ]] && while read -r line; do EXISTING_MAP["${line%% *}"]="1"; done < "$FILE_CONTEXTS"
+        [ ! -d "$ROOT" ] && continue
 
-        echo -e "${YELLOW}Generating file_contexts for:${NC} $PARTITION"
-        find "$ROOT" -mindepth 1 | while read -r item; do
-            local ENTRY="/$PARTITION${item#$ROOT}"
-            # Escape entry for SELinux format
-            local ESCAPED=$(echo "$ENTRY" | sed 's/[.\[\]*^$]/\\&/g')
-            [[ -n "${EXISTING_MAP[$ESCAPED]}" ]] && continue
+        PARTITION="$(basename "$ROOT")"
+        [ "$PARTITION" = "config" ] && continue
 
-            local CONTEXT="u:object_r:system_file:s0"
-            [[ "${item##*/}" == linker* ]] && CONTEXT="u:object_r:system_linker_exec:s0"
-            
-            printf "%s %s\n" "$ESCAPED" "$CONTEXT" >> "$FILE_CONTEXTS"
+        local FS_CONFIG="$EXTRACTED_FIRM_DIR/config/${PARTITION}_fs_config"
+        local TMP_EXISTING="$(mktemp)"
+
+        touch "$FS_CONFIG"
+
+        echo -e ""
+        echo -e "${YELLOW}Generating fs_config for partition:${NC} $PARTITION"
+
+        awk '{print $1}' "$FS_CONFIG" | sort -u > "$TMP_EXISTING"
+
+        find "$ROOT" -mindepth 1 \( -type f -o -type d -o -type l \) | while IFS= read -r item; do
+
+            REL_PATH="${item#$ROOT/}"
+            PATH_ENTRY="$PARTITION/$REL_PATH"
+
+            grep -qxF "$PATH_ENTRY" "$TMP_EXISTING" && continue
+
+            if [ -d "$item" ]; then
+                echo -e "- Adding: $PATH_ENTRY 0 0 0755"
+                printf "%s 0 0 0755\n" "$PATH_ENTRY" >> "$FS_CONFIG"
+            else
+                if [[ "$REL_PATH" == */bin/* ]]; then
+                    echo -e "- Adding: $PATH_ENTRY 0 2000 0755"
+                    printf "%s 0 2000 0755\n" "$PATH_ENTRY" >> "$FS_CONFIG"
+                else
+                    echo -e "- Adding: $PATH_ENTRY 0 0 0644"
+                    printf "%s 0 0 0644\n" "$PATH_ENTRY" >> "$FS_CONFIG"
+                fi
+            fi
+
         done
+
+        rm -f "$TMP_EXISTING"
+        echo -e "- $PARTITION fs_config generated"
     done
 }
 
+
+GEN_FILE_CONTEXTS() {
+    if [ "$#" -ne 1 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <EXTRACTED_FIRM_DIR>"
+        return 1
+    fi
+
+    local EXTRACTED_FIRM_DIR="$1"
+    [ ! -d "$EXTRACTED_FIRM_DIR" ] && { echo -e "- $EXTRACTED_FIRM_DIR not found."; return 1; }
+    [ ! -d "$EXTRACTED_FIRM_DIR/config" ] && { echo -e "[ERROR] config directory missing"; return 1; }
+
+    escape_path() {
+        local path="$1"
+        local result=""
+        local c
+        for ((i=0; i<${#path}; i++)); do
+            c="${path:i:1}"
+            case "$c" in
+                '.'|'+'|'['|']'|'*'|'?'|'^'|'$'|'\\')
+                    result+="\\$c"
+                    ;;
+                *)
+                    result+="$c"
+                    ;;
+            esac
+        done
+        printf '%s' "$result"
+    }
+
+    for ROOT in "$EXTRACTED_FIRM_DIR"/*; do
+        [ ! -d "$ROOT" ] && continue
+        local PARTITION
+        PARTITION="$(basename "$ROOT")"
+        [ "$PARTITION" = "config" ] && continue
+
+        local FILE_CONTEXTS="$EXTRACTED_FIRM_DIR/config/${PARTITION}_file_contexts"
+        touch "$FILE_CONTEXTS"
+
+        echo -e ""
+        echo -e "${YELLOW}Generating file_contexts for partition:${NC} $PARTITION"
+
+        declare -A EXISTING=()
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            [ -z "$line" ] && continue
+            local PATH_ONLY
+            PATH_ONLY=$(echo -e "$line" | awk '{print $1}')
+            EXISTING["$PATH_ONLY"]=1
+        done < "$FILE_CONTEXTS"
+
+        find "$ROOT" -mindepth 1 \( -type f -o -type d -o -type l \) | while IFS= read -r item; do
+            local REL_PATH="${item#$ROOT}"
+            local PATH_ENTRY="/$PARTITION$REL_PATH"
+
+            local ESCAPED_PATH
+            ESCAPED_PATH="/$(escape_path "${PATH_ENTRY#/}")"
+
+            [[ -n "${EXISTING[$ESCAPED_PATH]-}" ]] && continue
+
+            local CONTEXT="u:object_r:system_file:s0"
+            local BASENAME
+            BASENAME=$(basename "$item")
+            if [[ "$BASENAME" == "linker" || "$BASENAME" == "linker64" ]]; then
+                CONTEXT="u:object_r:system_linker_exec:s0"
+            fi
+            if [[ "$BASENAME" == "[" ]]; then
+                CONTEXT="u:object_r:system_file:s0"
+            fi
+
+            printf "%s %s\n" "$ESCAPED_PATH" "$CONTEXT" >> "$FILE_CONTEXTS"
+            echo -e "- Added: $ESCAPED_PATH"
+
+            EXISTING["$ESCAPED_PATH"]=1
+        done
+
+        echo -e "- $PARTITION file_contexts generated"
+        unset EXISTING
+    done
+}
+
+
 BUILD_IMG() {
+    if [ "$#" -ne 3 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <EXTRACTED_FIRM_DIR> <FILE_SYSTEM> <OUT_DIR>"
+        return 1
+    fi
+
     local EXTRACTED_FIRM_DIR="$1"
     local FILE_SYSTEM="$2"
     local OUT_DIR="$3"
@@ -277,23 +723,35 @@ BUILD_IMG() {
     GEN_FILE_CONTEXTS "$EXTRACTED_FIRM_DIR"
 
     for PART in "$EXTRACTED_FIRM_DIR"/*; do
-        [[ ! -d "$PART" || "${PART##*/}" == "config" ]] && continue
-        local PARTITION="${PART##*/}"
-        local SRC="$EXTRACTED_FIRM_DIR/$PARTITION"
+        [[ -d "$PART" ]] || continue
+        PARTITION="$(basename "$PART")"
+        [[ "$PARTITION" == "config" ]] && continue
+
+        local SRC_DIR="$EXTRACTED_FIRM_DIR/$PARTITION"
         local OUT_IMG="$OUT_DIR/${PARTITION}.img"
         local FS_CONFIG="$EXTRACTED_FIRM_DIR/config/${PARTITION}_fs_config"
         local FILE_CONTEXTS="$EXTRACTED_FIRM_DIR/config/${PARTITION}_file_contexts"
+        local SIZE=$(du -sb --apparent-size "$SRC_DIR" | awk '{printf "%.0f", $1 * 1.2}')
+        MOUNT_POINT="/$PARTITION"
 
-        # Bulk sorting is faster than line-by-line
-        sort -uo "$FS_CONFIG" "$FS_CONFIG"
-        sort -uo "$FILE_CONTEXTS" "$FILE_CONTEXTS"
+        echo -e ""
+        [[ -f "$FS_CONFIG" ]] || { echo -e "Warning: $FS_CONFIG missing, skipping $PARTITION"; continue; }
+        [[ -f "$FILE_CONTEXTS" ]] || { echo -e "Warning: $FILE_CONTEXTS missing, skipping $PARTITION"; continue; }
+
+        sort -u "$FILE_CONTEXTS" -o "$FILE_CONTEXTS"
+        sort -u "$FS_CONFIG" -o "$FS_CONFIG"
 
         if [[ "$FILE_SYSTEM" == "erofs" ]]; then
-            "$BIN_PATH/erofs-utils/mkfs.erofs" --mount-point="/$PARTITION" --fs-config-file="$FS_CONFIG" --file-contexts="$FILE_CONTEXTS" -z lz4hc -b 4096 -T 1199145600 "$OUT_IMG" "$SRC" >/dev/null 2>&1
+            echo -e "${YELLOW}Building EROFS image:${NC} $OUT_IMG"
+            $(pwd)/bin/erofs-utils/mkfs.erofs --mount-point="$MOUNT_POINT" --fs-config-file="$FS_CONFIG" --file-contexts="$FILE_CONTEXTS" -z lz4hc -b 4096 -T 1199145600 "$OUT_IMG" "$SRC_DIR" >/dev/null 2>&1
+
         elif [[ "$FILE_SYSTEM" == "ext4" ]]; then
-            local SIZE=$(du -sb "$SRC" | awk '{printf "%.0f", $1 * 1.25}')
-            "$BIN_PATH/ext4/make_ext4fs" -l "$SIZE" -J -b 4096 -S "$FILE_CONTEXTS" -C "$FS_CONFIG" -a "/$PARTITION" -L "$PARTITION" "$OUT_IMG" "$SRC"
-            resize2fs -M "$OUT_IMG" >/dev/null 2>&1
+            echo -e "${YELLOW}Building ext4 image:${NC} $OUT_IMG"
+            $(pwd)/bin/ext4/make_ext4fs -l "$(awk "BEGIN {printf \"%.0f\", $SIZE * 1.1}")" -J -b 4096 -S "$FILE_CONTEXTS" -C "$FS_CONFIG" -a "$MOUNT_POINT" -L "$PARTITION" "$OUT_IMG" "$SRC_DIR"
+            resize2fs -M "$OUT_IMG"
+        else
+            echo -e "Unknown filesystem: $FILE_SYSTEM, skipping $PARTITION"
+            continue
         fi
     done
 }
