@@ -634,3 +634,182 @@ BUILD_IMG() {
         fi
     done
 }
+
+###################################################################################################
+# MODS & FRAMEWORK FUNCTIONS
+###################################################################################################
+
+# Apply stock device configuration
+APPLY_STOCK_CONFIG() {
+    local firm_dir="$1"
+    
+    if [[ -z "$STOCK_DEVICE" || "$STOCK_DEVICE" == "None" ]]; then
+        echo "- No stock device specified, skipping config"
+        return 0
+    fi
+    
+    local config_dir="$(pwd)/Devices/$STOCK_DEVICE"
+    
+    if [[ ! -d "$config_dir" ]]; then
+        echo "- Config directory not found: $config_dir"
+        return 0
+    fi
+    
+    echo "- Applying stock config for $STOCK_DEVICE"
+    
+    # Source device config if exists
+    if [[ -f "$config_dir/config" ]]; then
+        source "$config_dir/config"
+    fi
+    
+    # Copy stock files if exists
+    if [[ -d "$config_dir/Stock" ]]; then
+        echo "  → Copying stock files..."
+        cp -rf "$config_dir/Stock"/* "$firm_dir/" 2>/dev/null || true
+    fi
+    
+    # Copy extra files to OUT if exists
+    if [[ -d "$config_dir/extra" ]]; then
+        echo "  → Copying extra files..."
+        cp -rf "$config_dir/extra"/* "$(pwd)/OUT/" 2>/dev/null || true
+    fi
+    
+    echo "- Stock config applied"
+}
+
+# Apply custom features from Mods folder
+APPLY_CUSTOM_FEATURES() {
+    local firm_dir="$1"
+    local mods_dir="$(pwd)/Mods"
+    
+    if [[ ! -d "$mods_dir" ]]; then
+        echo "- Mods directory not found, skipping"
+        return 0
+    fi
+    
+    echo "- Applying custom mods..."
+    
+    # Smart Manager CN
+    if [[ -d "$mods_dir/SMART_MANAGER_CN" ]]; then
+        echo "  → Applying SMART_MANAGER_CN..."
+        cp -rf "$mods_dir/SMART_MANAGER_CN"/* "$firm_dir/" 2>/dev/null || true
+    fi
+    
+    # Google Photos unlimited backup
+    if [[ -d "$mods_dir/GPhotos" ]]; then
+        echo "  → Applying GPhotos mod..."
+        cp -rf "$mods_dir/GPhotos"/* "$firm_dir/" 2>/dev/null || true
+    fi
+    
+    # Apps folder (AiWallpaper, ClockPackage, etc.)
+    if [[ -d "$mods_dir/Apps" ]]; then
+        echo "  → Applying custom apps..."
+        for app_mod in "$mods_dir/Apps"/*; do
+            if [[ -d "$app_mod" ]]; then
+                app_name=$(basename "$app_mod")
+                # Only copy if target doesn't exist (avoid overwriting stock)
+                if [[ ! -d "$firm_dir/system/system/app/$app_name" && ! -d "$firm_dir/system/system/priv-app/$app_name" ]]; then
+                    cp -rf "$app_mod"/* "$firm_dir/" 2>/dev/null || true
+                    echo "    ✓ Added: $app_name"
+                fi
+            fi
+        done
+    fi
+    
+    # Tethering Apex (if USE_UI_8_TETHERING_APEX is True)
+    if [[ "$USE_UI_8_TETHERING_APEX" == "True" && -d "$mods_dir/Tethering_Apex/UI-8" ]]; then
+        echo "  → Applying UI-8 Tethering Apex..."
+        cp -rf "$mods_dir/Tethering_Apex/UI-8"/* "$firm_dir/" 2>/dev/null || true
+    fi
+    
+    # SDHMS mod (if STOCK_DVFS_FILENAME is set)
+    if [[ -n "$STOCK_DVFS_FILENAME" && -d "$mods_dir/SDHMS" ]]; then
+        echo "  → Applying SDHMS mod..."
+        cp -rf "$mods_dir/SDHMS"/* "$firm_dir/" 2>/dev/null || true
+    fi
+    
+    echo "- Custom mods applied"
+}
+
+# Install framework-res.apk to apktool
+INSTALL_FRAMEWORK() {
+    local apk="$1"
+    if [[ ! -f "$apk" ]]; then
+        echo "- framework-res.apk not found"
+        return 1
+    fi
+    echo "- Installing framework to apktool..."
+    java -jar "$APKTOOL" if "$apk" -p "$(pwd)/WORK" 2>/dev/null || true
+    echo "- Framework installed"
+}
+
+# Decompile APK/JAR with apktool
+DECOMPILE() {
+    local tool="$1"
+    local framework_dir="$2"
+    local file="$3"
+    local out_dir="$4"
+    
+    if [[ ! -f "$file" ]]; then
+        echo "- File not found: $file"
+        return 1
+    fi
+    
+    local name=$(basename "${file%.*}")
+    echo "- Decompiling: $name"
+    java -jar "$tool" d -f --frame-path "$framework_dir" "$file" -o "$out_dir/$name" 2>/dev/null || {
+        echo "- Decompilation failed for $name"
+        return 1
+    }
+    echo "- Decompiled: $name"
+}
+
+# Recompile APK/JAR with apktool
+RECOMPILE() {
+    local tool="$1"
+    local framework_dir="$2"
+    local src_dir="$3"
+    local out_dir="$4"
+    
+    if [[ ! -d "$src_dir" ]]; then
+        echo "- Source directory not found: $src_dir"
+        return 1
+    fi
+    
+    local name=$(basename "$src_dir")
+    echo "- Recompiling: $name"
+    java -jar "$tool" b -f --frame-path "$framework_dir" "$src_dir" -o "$out_dir/${name}.jar" 2>/dev/null || {
+        echo "- Recompilation failed for $name"
+        return 1
+    }
+    echo "- Recompiled: $name"
+}
+
+# Edit build.prop safely
+BUILD_PROP() {
+    local firm_dir="$1"
+    local partition="$2"
+    local key="$3"
+    local value="${4:-}"
+    
+    local prop_file=""
+    case "$partition" in
+        system) prop_file="$firm_dir/system/system/build.prop" ;;
+        product) prop_file="$firm_dir/product/etc/build.prop" ;;
+        system_ext) prop_file="$firm_dir/system_ext/etc/build.prop" ;;
+        *) echo "- Unknown partition: $partition"; return 1 ;;
+    esac
+    
+    if [[ ! -f "$prop_file" ]]; then
+        echo "- build.prop not found: $prop_file"
+        return 1
+    fi
+    
+    # Update or append property
+    if grep -q "^${key}=" "$prop_file"; then
+        sed -i "s|^${key}=.*|${key}=${value}|" "$prop_file"
+    else
+        echo "${key}=${value}" >> "$prop_file"
+    fi
+    echo "- Set $key in $partition"
+}
