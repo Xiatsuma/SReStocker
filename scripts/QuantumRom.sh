@@ -639,7 +639,6 @@ BUILD_IMG() {
 # MODS & FRAMEWORK FUNCTIONS
 ###################################################################################################
 
-# Apply stock device configuration
 APPLY_STOCK_CONFIG() {
     local firm_dir="$1"
     
@@ -648,7 +647,6 @@ APPLY_STOCK_CONFIG() {
         return 0
     fi
     
-    # CORRECTED: QuantumROM/Devices path
     local config_dir="$(pwd)/QuantumROM/Devices/$STOCK_DEVICE"
     
     if [[ ! -d "$config_dir" ]]; then
@@ -658,18 +656,15 @@ APPLY_STOCK_CONFIG() {
     
     echo "- Applying stock config for $STOCK_DEVICE"
     
-    # Source device config if exists
     if [[ -f "$config_dir/config" ]]; then
         source "$config_dir/config"
     fi
     
-    # Copy stock files if exists
     if [[ -d "$config_dir/Stock" ]]; then
         echo "  → Copying stock files..."
         cp -rf "$config_dir/Stock"/* "$firm_dir/" 2>/dev/null || true
     fi
     
-    # Copy extra files to OUT if exists
     if [[ -d "$config_dir/extra" ]]; then
         echo "  → Copying extra files..."
         cp -rf "$config_dir/extra"/* "$(pwd)/OUT/" 2>/dev/null || true
@@ -678,10 +673,8 @@ APPLY_STOCK_CONFIG() {
     echo "- Stock config applied"
 }
 
-# Apply custom features from Mods folder
 APPLY_CUSTOM_FEATURES() {
     local firm_dir="$1"
-    # CORRECTED: QuantumROM/Mods path
     local mods_dir="$(pwd)/QuantumROM/Mods"
     
     if [[ ! -d "$mods_dir" ]]; then
@@ -691,25 +684,21 @@ APPLY_CUSTOM_FEATURES() {
     
     echo "- Applying custom mods..."
     
-    # Smart Manager CN
     if [[ -d "$mods_dir/SMART_MANAGER_CN" ]]; then
         echo "  → Applying SMART_MANAGER_CN..."
         cp -rf "$mods_dir/SMART_MANAGER_CN"/* "$firm_dir/" 2>/dev/null || true
     fi
     
-    # Google Photos unlimited backup
     if [[ -d "$mods_dir/GPhotos" ]]; then
         echo "  → Applying GPhotos mod..."
         cp -rf "$mods_dir/GPhotos"/* "$firm_dir/" 2>/dev/null || true
     fi
     
-    # Apps folder (AiWallpaper, ClockPackage, etc.)
     if [[ -d "$mods_dir/Apps" ]]; then
         echo "  → Applying custom apps..."
         for app_mod in "$mods_dir/Apps"/*; do
             if [[ -d "$app_mod" ]]; then
                 app_name=$(basename "$app_mod")
-                # Only copy if target doesn't exist (avoid overwriting stock)
                 if [[ ! -d "$firm_dir/system/system/app/$app_name" && ! -d "$firm_dir/system/system/priv-app/$app_name" ]]; then
                     cp -rf "$app_mod"/* "$firm_dir/" 2>/dev/null || true
                     echo "    ✓ Added: $app_name"
@@ -718,13 +707,11 @@ APPLY_CUSTOM_FEATURES() {
         done
     fi
     
-    # Tethering Apex (if USE_UI_8_TETHERING_APEX is True)
     if [[ "$USE_UI_8_TETHERING_APEX" == "True" && -d "$mods_dir/Tethering_Apex/UI-8" ]]; then
         echo "  → Applying UI-8 Tethering Apex..."
         cp -rf "$mods_dir/Tethering_Apex/UI-8"/* "$firm_dir/" 2>/dev/null || true
     fi
     
-    # SDHMS mod (if STOCK_DVFS_FILENAME is set)
     if [[ -n "$STOCK_DVFS_FILENAME" && -d "$mods_dir/SDHMS" ]]; then
         echo "  → Applying SDHMS mod..."
         cp -rf "$mods_dir/SDHMS"/* "$firm_dir/" 2>/dev/null || true
@@ -733,7 +720,6 @@ APPLY_CUSTOM_FEATURES() {
     echo "- Custom mods applied"
 }
 
-# Install framework-res.apk to apktool
 INSTALL_FRAMEWORK() {
     local apk="$1"
     if [[ ! -f "$apk" ]]; then
@@ -745,7 +731,6 @@ INSTALL_FRAMEWORK() {
     echo "- Framework installed"
 }
 
-# Decompile APK/JAR with apktool
 DECOMPILE() {
     local tool="$1"
     local framework_dir="$2"
@@ -766,7 +751,6 @@ DECOMPILE() {
     echo "- Decompiled: $name"
 }
 
-# Recompile APK/JAR with apktool
 RECOMPILE() {
     local tool="$1"
     local framework_dir="$2"
@@ -787,7 +771,6 @@ RECOMPILE() {
     echo "- Recompiled: $name"
 }
 
-# Edit build.prop safely
 BUILD_PROP() {
     local firm_dir="$1"
     local partition="$2"
@@ -807,7 +790,6 @@ BUILD_PROP() {
         return 1
     fi
     
-    # Update or append property
     if grep -q "^${key}=" "$prop_file"; then
         sed -i "s|^${key}=.*|${key}=${value}|" "$prop_file"
     else
