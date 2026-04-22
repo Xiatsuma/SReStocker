@@ -648,7 +648,8 @@ APPLY_STOCK_CONFIG() {
         return 0
     fi
     
-    local config_dir="$(pwd)/Devices/$STOCK_DEVICE"
+    # CORRECTED: QuantumROM/Devices path
+    local config_dir="$(pwd)/QuantumROM/Devices/$STOCK_DEVICE"
     
     if [[ ! -d "$config_dir" ]]; then
         echo "- Config directory not found: $config_dir"
@@ -680,7 +681,8 @@ APPLY_STOCK_CONFIG() {
 # Apply custom features from Mods folder
 APPLY_CUSTOM_FEATURES() {
     local firm_dir="$1"
-    local mods_dir="$(pwd)/Mods"
+    # CORRECTED: QuantumROM/Mods path
+    local mods_dir="$(pwd)/QuantumROM/Mods"
     
     if [[ ! -d "$mods_dir" ]]; then
         echo "- Mods directory not found, skipping"
