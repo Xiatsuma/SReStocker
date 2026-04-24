@@ -9,6 +9,10 @@ if [ "$#" -lt 1 ]; then
 fi
 
 for DIR in "$@"; do
+    if [[ -z "$DIR" || "$DIR" == "/" ]]; then
+        echo "Refusing unsafe directory target: '$DIR'"
+        exit 1
+    fi
     # Clean old dir
     rm -rf "$DIR"
     # Recreate dir
