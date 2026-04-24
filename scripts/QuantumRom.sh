@@ -1,4 +1,5 @@
 #!/bin/bash
+set -o pipefail
 
 ###################################################################################################
 
@@ -49,9 +50,25 @@ REMOVE_LINE() {
 
     local LINE="$1"
     local FILE="$2"
+    [ -f "$FILE" ] || return 0
 
     echo -e "- Deleting $LINE from $FILE"
-    grep -vxF "$LINE" "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
+
+    local TMP_FILE="${FILE}.tmp.$$"
+    if ! grep -vxF "$LINE" "$FILE" > "$TMP_FILE"; then
+        cp -f "$FILE" "$TMP_FILE"
+    fi
+    mv -f "$TMP_FILE" "$FILE"
+}
+
+REQUIRE_TOOLS() {
+    local tools=("file" "blkid" "simg2img" "lz4" "python3")
+    for tool in "${tools[@]}"; do
+        command -v "$tool" >/dev/null 2>&1 || {
+            echo -e "Required tool missing: $tool"
+            return 1
+        }
+    done
 }
 
 GET_PROP() {
@@ -132,9 +149,17 @@ DOWNLOAD_FIRMWARE() {
         return 1
     fi
 
-    wget --no-check-certificate -O "$DOWN_DIR/firmware.zip" "$SAMFW_URL" 2>&1 | tail -3
+    local WGET_LOG="$DOWN_DIR/wget.log"
+    if ! wget --no-check-certificate -O "$DOWN_DIR/firmware.zip" "$SAMFW_URL" >"$WGET_LOG" 2>&1; then
+        tail -n 3 "$WGET_LOG"
+        rm -f "$WGET_LOG"
+        echo -e "- Download failed. Check URL."
+        return 1
+    fi
+    tail -n 3 "$WGET_LOG"
+    rm -f "$WGET_LOG"
 
-    if [ $? -ne 0 ] || [ ! -f "$DOWN_DIR/firmware.zip" ]; then
+    if [ ! -f "$DOWN_DIR/firmware.zip" ]; then
         echo -e "- Download failed. Check URL."
         return 1
     fi
@@ -243,8 +268,6 @@ PREPARE_PARTITIONS() {
 
     echo -e "${YELLOW}Preparing partitions.${NC}"
 
-    find "$EXTRACTED_FIRM_DIR" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +
-
     shopt -s nullglob dotglob
 
     for item in "$EXTRACTED_FIRM_DIR"/*; do
@@ -274,6 +297,7 @@ EXTRACT_FIRMWARE_IMG() {
     fi
 
     local FIRM_DIR="$1"
+    REQUIRE_TOOLS || return 1
 
     PREPARE_PARTITIONS "$FIRM_DIR"
 
@@ -288,11 +312,34 @@ EXTRACT_FIRMWARE_IMG() {
 
         local partition
         local fstype
+        local file_desc
         local IMG_SIZE
 
         partition="$(basename "${imgfile%.img}")"
+        file_desc=$(file -b "$imgfile")
+
+        # Convert sparse images before filesystem detection/extraction.
+        if echo "$file_desc" | grep -qi "Android sparse image"; then
+            echo -e "- $partition.img Detected sparse image. Converting to raw..."
+            if simg2img "$imgfile" "${imgfile}.raw" >/dev/null 2>&1; then
+                mv -f "${imgfile}.raw" "$imgfile"
+                file_desc=$(file -b "$imgfile")
+            else
+                echo -e "- Failed to convert sparse image: $partition.img"
+                rm -f "${imgfile}.raw"
+                continue
+            fi
+        fi
+
         fstype=$(blkid -o value -s TYPE "$imgfile")
-        [ -z "$fstype" ] && fstype=$(file -b "$imgfile")
+        if [ -z "$fstype" ]; then
+            case "$file_desc" in
+                *EROFS*|*erofs*) fstype="erofs" ;;
+                *ext4*|*Ext4*) fstype="ext4" ;;
+                *f2fs*|*F2FS*) fstype="f2fs" ;;
+                *) fstype="$file_desc" ;;
+            esac
+        fi
 
         case "$fstype" in
             ext4)
@@ -342,7 +389,7 @@ FIX_SYSTEM_EXT() {
 
     if [ "$STOCK_HAS_SEPARATE_SYSTEM_EXT" = "TRUE" ] && [ -d "$EXTRACTED_FIRM_DIR/system_ext" ]; then
         export TARGET_ROM_SYSTEM_EXT_DIR="$EXTRACTED_FIRM_DIR/system_ext"
-        return 1
+        return 0
     fi
 
     if [ "$STOCK_HAS_SEPARATE_SYSTEM_EXT" = "FALSE" ] && [[ -d "$EXTRACTED_FIRM_DIR/system_ext" ]]; then
