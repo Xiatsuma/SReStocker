@@ -7,6 +7,9 @@ NC="\e[0m"
 
 REAL_USER=${SUDO_USER:-$USER}
 
+# Valid partition names
+VALID_PARTITIONS=("system" "product" "system_ext" "vendor" "odm")
+
 # Binary
 chmod +x $(pwd)/bin/lp/lpunpack
 chmod +x $(pwd)/bin/ext4/make_ext4fs
@@ -15,6 +18,28 @@ chmod +x $(pwd)/bin/erofs-utils/mkfs.erofs
 
 # Source debloat system
 source "$(pwd)/scripts/debloat.sh"
+
+###################################################################################################
+# HELPERS
+###################################################################################################
+
+IS_VALID_PARTITION() {
+    local name="$1"
+    for p in "${VALID_PARTITIONS[@]}"; do
+        [[ "$name" == "$p" ]] && return 0
+    done
+    return 1
+}
+
+IS_IN_BUILD_PARTITIONS() {
+    local name="$1"
+    IFS=',' read -r -a BUILD_LIST <<< "$BUILD_PARTITIONS"
+    for p in "${BUILD_LIST[@]}"; do
+        p=$(echo "$p" | xargs)
+        [[ "$name" == "$p" ]] && return 0
+    done
+    return 1
+}
 
 REMOVE_LINE() {
     if [ "$#" -ne 2 ]; then
@@ -76,6 +101,10 @@ GET_PROP() {
     echo -e "$VALUE"
 }
 
+###################################################################################################
+# FIRMWARE DOWNLOAD & EXTRACTION
+###################################################################################################
+
 DOWNLOAD_FIRMWARE() {
     if [ "$#" -lt 4 ]; then
         echo -e "Usage: ${FUNCNAME[0]} <MODEL> <CSC> <IMEI> <DOWNLOAD_DIRECTORY> [VERSION]"
@@ -96,7 +125,6 @@ DOWNLOAD_FIRMWARE() {
     echo -e "======================================"
     echo -e "MODEL: $MODEL | CSC: $CSC"
 
-    # Download using SamFW direct link (passed via env var)
     echo -e "- Downloading firmware via SamFW..."
 
     if [ -z "$SAMFW_URL" ]; then
@@ -111,7 +139,6 @@ DOWNLOAD_FIRMWARE() {
         return 1
     fi
 
-    # Show firmware info
     file_size=$(du -m "$DOWN_DIR/firmware.zip" | cut -f1)
     echo -e "- Firmware downloaded successfully! Size: ${file_size} MB"
     echo -e "- Saved to: $DOWN_DIR/firmware.zip"
@@ -271,24 +298,19 @@ EXTRACT_FIRMWARE_IMG() {
             ext4)
                 IMG_SIZE=$(stat -c%s -- "$imgfile")
                 echo -e "- $partition.img Detected ext4. Size: $IMG_SIZE bytes. Extracting..."
-
                 rm -rf "$FIRM_DIR/$partition"
                 python3 "$(pwd)/bin/py_scripts/imgextractor.py" "$imgfile" "$FIRM_DIR"
                 ;;
-
             erofs)
                 IMG_SIZE=$(stat -c%s -- "$imgfile")
                 echo -e "- $partition.img Detected erofs. Size: $IMG_SIZE bytes. Extracting..."
-
                 rm -rf "$FIRM_DIR/$partition"
                 "$(pwd)/bin/erofs-utils/extract.erofs" -i "$imgfile" -x -f -o "$FIRM_DIR" >/dev/null 2>&1
                 ;;
-
             f2fs)
                 IMG_SIZE=$(stat -c%s -- "$imgfile")
                 echo -e "- $partition.img Detected f2fs. Size: $IMG_SIZE bytes. Converting to ext4"
                 bash "$(pwd)/scripts/convert_to_ext4.sh" "$imgfile"
-
                 rm -rf "$FIRM_DIR/$partition"
                 python3 "$(pwd)/bin/py_scripts/imgextractor.py" "$imgfile" "$FIRM_DIR"
                 ;;
@@ -331,10 +353,8 @@ FIX_SYSTEM_EXT() {
         echo -e "- Cleaning and merging system_ext file contexts and configs"
         SYSTEM_EXT_CONFIG_FILE="$EXTRACTED_FIRM_DIR/config/system_ext_fs_config"
         SYSTEM_EXT_CONTEXTS_FILE="$EXTRACTED_FIRM_DIR/config/system_ext_file_contexts"
-
         SYSTEM_CONFIG_FILE="$EXTRACTED_FIRM_DIR/config/system_fs_config"
         SYSTEM_CONTEXTS_FILE="$EXTRACTED_FIRM_DIR/config/system_file_contexts"
-
         SYSTEM_EXT_TEMP_CONFIG="${SYSTEM_EXT_CONFIG_FILE}.tmp"
         SYSTEM_EXT_TEMP_CONTEXTS="${SYSTEM_EXT_CONTEXTS_FILE}.tmp"
 
@@ -473,6 +493,9 @@ GEN_FS_CONFIG() {
         PARTITION="$(basename "$ROOT")"
         [ "$PARTITION" = "config" ] && continue
 
+        # Skip non-build partitions
+        IS_IN_BUILD_PARTITIONS "$PARTITION" || continue
+
         local FS_CONFIG="$EXTRACTED_FIRM_DIR/config/${PARTITION}_fs_config"
         local TMP_EXISTING="$(mktemp)"
 
@@ -484,7 +507,6 @@ GEN_FS_CONFIG() {
         awk '{print $1}' "$FS_CONFIG" | sort -u > "$TMP_EXISTING"
 
         find "$ROOT" -mindepth 1 \( -type f -o -type d -o -type l \) | while IFS= read -r item; do
-
             REL_PATH="${item#$ROOT/}"
             PATH_ENTRY="$PARTITION/$REL_PATH"
 
@@ -502,7 +524,6 @@ GEN_FS_CONFIG() {
                     printf "%s 0 0 0644\n" "$PATH_ENTRY" >> "$FS_CONFIG"
                 fi
             fi
-
         done
 
         rm -f "$TMP_EXISTING"
@@ -543,6 +564,9 @@ GEN_FILE_CONTEXTS() {
         local PARTITION
         PARTITION="$(basename "$ROOT")"
         [ "$PARTITION" = "config" ] && continue
+
+        # Skip non-build partitions
+        IS_IN_BUILD_PARTITIONS "$PARTITION" || continue
 
         local FILE_CONTEXTS="$EXTRACTED_FIRM_DIR/config/${PARTITION}_file_contexts"
         touch "$FILE_CONTEXTS"
@@ -606,6 +630,12 @@ BUILD_IMG() {
         PARTITION="$(basename "$PART")"
         [[ "$PARTITION" == "config" ]] && continue
 
+        # Only build partitions in BUILD_PARTITIONS
+        IS_IN_BUILD_PARTITIONS "$PARTITION" || {
+            echo -e "- Skipping non-build partition: $PARTITION"
+            continue
+        }
+
         local SRC_DIR="$EXTRACTED_FIRM_DIR/$PARTITION"
         local OUT_IMG="$OUT_DIR/${PARTITION}.img"
         local FS_CONFIG="$EXTRACTED_FIRM_DIR/config/${PARTITION}_fs_config"
@@ -623,7 +653,6 @@ BUILD_IMG() {
         if [[ "$FILE_SYSTEM" == "erofs" ]]; then
             echo -e "${YELLOW}Building EROFS image:${NC} $OUT_IMG"
             $(pwd)/bin/erofs-utils/mkfs.erofs --mount-point="$MOUNT_POINT" --fs-config-file="$FS_CONFIG" --file-contexts="$FILE_CONTEXTS" -z lz4hc -b 4096 -T 1199145600 "$OUT_IMG" "$SRC_DIR" >/dev/null 2>&1
-
         elif [[ "$FILE_SYSTEM" == "ext4" ]]; then
             echo -e "${YELLOW}Building ext4 image:${NC} $OUT_IMG"
             $(pwd)/bin/ext4/make_ext4fs -l "$(awk "BEGIN {printf \"%.0f\", $SIZE * 1.1}")" -J -b 4096 -S "$FILE_CONTEXTS" -C "$FS_CONFIG" -a "$MOUNT_POINT" -L "$PARTITION" "$OUT_IMG" "$SRC_DIR"
@@ -631,6 +660,24 @@ BUILD_IMG() {
         else
             echo -e "Unknown filesystem: $FILE_SYSTEM, skipping $PARTITION"
             continue
+        fi
+    done
+
+    # Clean up any leftover fake partition folders from OUT_DIR
+    echo -e "- Cleaning OUT_DIR of any unexpected files..."
+    IFS=',' read -r -a BUILD_LIST <<< "$BUILD_PARTITIONS"
+    for f in "$OUT_DIR"/*; do
+        [ -f "$f" ] || continue
+        fname=$(basename "$f")
+        # Only keep the 3 partition images
+        keep=0
+        for p in "${BUILD_LIST[@]}"; do
+            p=$(echo "$p" | xargs)
+            [[ "$fname" == "${p}.img" ]] && keep=1 && break
+        done
+        if [ $keep -eq 0 ]; then
+            echo -e "- Removing unexpected file from OUT: $fname"
+            rm -f "$f"
         fi
     done
 }
@@ -665,10 +712,7 @@ APPLY_STOCK_CONFIG() {
         cp -rf "$config_dir/Stock"/* "$firm_dir/" 2>/dev/null || true
     fi
 
-    if [[ -d "$config_dir/extra" ]]; then
-        echo "  → Copying extra files..."
-        cp -rf "$config_dir/extra"/* "$(pwd)/OUT/" 2>/dev/null || true
-    fi
+    # Do NOT copy extra files to OUT — those are boot/twrp images we don't want
 
     echo "- Stock config applied"
 }
@@ -684,19 +728,40 @@ APPLY_CUSTOM_FEATURES() {
 
     echo "- Applying custom mods..."
 
-    # Apps folder - always copy all apps directly
+    # Apps folder - smart copy: auto-detect partition structure depth
     if [[ -d "$mods_dir/Apps" ]]; then
         echo "  → Applying custom apps..."
         for app_mod in "$mods_dir/Apps"/*; do
-            if [[ -d "$app_mod" ]]; then
-                app_name=$(basename "$app_mod")
+            [[ -d "$app_mod" ]] || continue
+            app_name=$(basename "$app_mod")
+
+            # Find the correct source to copy from by checking if top-level
+            # folders are valid partition names. If not, go one level deeper.
+            copy_src=""
+            for item in "$app_mod"/*/; do
+                [[ -d "$item" ]] || continue
+                item_name=$(basename "$item")
+                if IS_VALID_PARTITION "$item_name"; then
+                    # Top level contains valid partition folders - copy from app_mod directly
+                    copy_src="$app_mod"
+                    break
+                else
+                    # Top level is not a partition - go one level deeper
+                    copy_src="$item"
+                    break
+                fi
+            done
+
+            if [[ -n "$copy_src" && -d "$copy_src" ]]; then
                 echo "    ✓ Adding: $app_name"
-                cp -rf "$app_mod"/* "$firm_dir/" 2>/dev/null || true
+                cp -rf "$copy_src"/* "$firm_dir/" 2>/dev/null || true
+            else
+                echo "    ⚠ Skipping $app_name: could not determine copy source"
             fi
         done
     fi
 
-    # SDHMS mod
+    # SDHMS mod - only if STOCK_DVFS_FILENAME is set in device config
     if [[ -n "$STOCK_DVFS_FILENAME" && -d "$mods_dir/SDHMS" ]]; then
         echo "  → Applying SDHMS mod..."
         cp -rf "$mods_dir/SDHMS"/* "$firm_dir/" 2>/dev/null || true
