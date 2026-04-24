@@ -22,7 +22,6 @@ export FIRM_DIR="$(pwd)/FIRMWARE"
 export DEVICES_DIR="$(pwd)/QuantumROM/Devices"
 export APKTOOL="$(pwd)/bin/apktool/apktool.jar"
 export VNDKS_COLLECTION="$(pwd)/QuantumROM/vndks"
-export SMART_MANAGER_CN="$(pwd)/QuantumROM/Mods/SMART_MANAGER_CN"
 
 export BUILD_PARTITIONS="product,system_ext,system"
 
