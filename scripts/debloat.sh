@@ -28,7 +28,7 @@ KICK() {
 
     for app in "${DEBLOAT_APPS[@]}"; do
         for dir in "${APP_DIRS[@]}"; do
-            target="$dir/$app"
+            local target="$dir/$app"
 
             if [[ -d "$target" ]]; then
                 rm -rf "$target" || echo -e "[WARN] Failed to remove $target"
