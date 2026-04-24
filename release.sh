@@ -1,16 +1,22 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
 # Required env vars:
 # ZIP_PATH, GIT_TOKEN, BUILD_TIME
 # GitHub automatically provides: GITHUB_REPOSITORY
 
+: "${ZIP_PATH:?ZIP_PATH is required}"
+: "${BUILD_TIME:?BUILD_TIME is required}"
+: "${TARGET_DEVICE:?TARGET_DEVICE is required}"
+: "${STOCK_DEVICE:?STOCK_DEVICE is required}"
+: "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
+
 TAG_NAME="${TARGET_DEVICE}-$(date +%s)"
 RELEASE_NAME="${TARGET_DEVICE} Port For ${STOCK_DEVICE}"
 
 echo "Uploading to GoFile..."
-GOFILE_LINK=$(sudo bash upload.sh "$ZIP_PATH")
+GOFILE_LINK=$(bash "$(pwd)/upload.sh" "$ZIP_PATH")
 echo "🌎 File uploaded here: $GOFILE_LINK"
 
 # File info
@@ -40,10 +46,10 @@ $GOFILE_LINK
 JSON_BODY=$(printf '%s' "$RELEASE_BODY" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')
 
 # Create release
-if [ -n "$GIT_TOKEN" ]; then
+if [ -n "${GIT_TOKEN:-}" ]; then
   echo "Creating GitHub release..."
 
-  curl -X POST "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases" \
+  curl -sS -X POST "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases" \
     -H "Authorization: token $GIT_TOKEN" \
     -H "Content-Type: application/json" \
     -d "{
