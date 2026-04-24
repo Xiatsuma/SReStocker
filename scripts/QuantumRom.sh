@@ -98,14 +98,14 @@ DOWNLOAD_FIRMWARE() {
 
     # Download using SamFW direct link (passed via env var)
     echo -e "- Downloading firmware via SamFW..."
-    
+
     if [ -z "$SAMFW_URL" ]; then
         echo -e "- SAMFW_URL not set!"
         return 1
     fi
-    
+
     wget --no-check-certificate -O "$DOWN_DIR/firmware.zip" "$SAMFW_URL" 2>&1 | tail -3
-    
+
     if [ $? -ne 0 ] || [ ! -f "$DOWN_DIR/firmware.zip" ]; then
         echo -e "- Download failed. Check URL."
         return 1
@@ -641,82 +641,73 @@ BUILD_IMG() {
 
 APPLY_STOCK_CONFIG() {
     local firm_dir="$1"
-    
+
     if [[ -z "$STOCK_DEVICE" || "$STOCK_DEVICE" == "None" ]]; then
         echo "- No stock device specified, skipping config"
         return 0
     fi
-    
+
     local config_dir="$(pwd)/QuantumROM/Devices/$STOCK_DEVICE"
-    
+
     if [[ ! -d "$config_dir" ]]; then
         echo "- Config directory not found: $config_dir"
         return 0
     fi
-    
+
     echo "- Applying stock config for $STOCK_DEVICE"
-    
+
     if [[ -f "$config_dir/config" ]]; then
         source "$config_dir/config"
     fi
-    
+
     if [[ -d "$config_dir/Stock" ]]; then
         echo "  → Copying stock files..."
         cp -rf "$config_dir/Stock"/* "$firm_dir/" 2>/dev/null || true
     fi
-    
+
     if [[ -d "$config_dir/extra" ]]; then
         echo "  → Copying extra files..."
         cp -rf "$config_dir/extra"/* "$(pwd)/OUT/" 2>/dev/null || true
     fi
-    
+
     echo "- Stock config applied"
 }
 
 APPLY_CUSTOM_FEATURES() {
     local firm_dir="$1"
     local mods_dir="$(pwd)/QuantumROM/Mods"
-    
+
     if [[ ! -d "$mods_dir" ]]; then
         echo "- Mods directory not found, skipping"
         return 0
     fi
-    
+
     echo "- Applying custom mods..."
-    
-    if [[ -d "$mods_dir/SMART_MANAGER_CN" ]]; then
-        echo "  → Applying SMART_MANAGER_CN..."
-        cp -rf "$mods_dir/SMART_MANAGER_CN"/* "$firm_dir/" 2>/dev/null || true
-    fi
-    
-    if [[ -d "$mods_dir/GPhotos" ]]; then
-        echo "  → Applying GPhotos mod..."
-        cp -rf "$mods_dir/GPhotos"/* "$firm_dir/" 2>/dev/null || true
-    fi
-    
+
+    # Apps folder - always copy all apps directly
     if [[ -d "$mods_dir/Apps" ]]; then
         echo "  → Applying custom apps..."
         for app_mod in "$mods_dir/Apps"/*; do
             if [[ -d "$app_mod" ]]; then
                 app_name=$(basename "$app_mod")
-                if [[ ! -d "$firm_dir/system/system/app/$app_name" && ! -d "$firm_dir/system/system/priv-app/$app_name" ]]; then
-                    cp -rf "$app_mod"/* "$firm_dir/" 2>/dev/null || true
-                    echo "    ✓ Added: $app_name"
-                fi
+                echo "    ✓ Adding: $app_name"
+                cp -rf "$app_mod"/* "$firm_dir/" 2>/dev/null || true
             fi
         done
     fi
-    
-    if [[ "$USE_UI_8_TETHERING_APEX" == "True" && -d "$mods_dir/Tethering_Apex/UI-8" ]]; then
-        echo "  → Applying UI-8 Tethering Apex..."
-        cp -rf "$mods_dir/Tethering_Apex/UI-8"/* "$firm_dir/" 2>/dev/null || true
-    fi
-    
+
+    # SDHMS mod
     if [[ -n "$STOCK_DVFS_FILENAME" && -d "$mods_dir/SDHMS" ]]; then
         echo "  → Applying SDHMS mod..."
         cp -rf "$mods_dir/SDHMS"/* "$firm_dir/" 2>/dev/null || true
     fi
-    
+
+    # Tethering Apex - only if USE_UI_8_TETHERING_APEX is True
+    if [[ "$USE_UI_8_TETHERING_APEX" == "True" && -d "$mods_dir/Tethering_Apex/UI-8" ]]; then
+        echo "  → Applying UI-8 Tethering Apex..."
+        cp -rf "$mods_dir/Tethering_Apex/UI-8"/* "$firm_dir/" 2>/dev/null || true
+    fi
+
     echo "- Custom mods applied"
 }
 
@@ -736,12 +727,12 @@ DECOMPILE() {
     local framework_dir="$2"
     local file="$3"
     local out_dir="$4"
-    
+
     if [[ ! -f "$file" ]]; then
         echo "- File not found: $file"
         return 1
     fi
-    
+
     local name=$(basename "${file%.*}")
     echo "- Decompiling: $name"
     java -jar "$tool" d -f --frame-path "$framework_dir" "$file" -o "$out_dir/$name" 2>/dev/null || {
@@ -756,12 +747,12 @@ RECOMPILE() {
     local framework_dir="$2"
     local src_dir="$3"
     local out_dir="$4"
-    
+
     if [[ ! -d "$src_dir" ]]; then
         echo "- Source directory not found: $src_dir"
         return 1
     fi
-    
+
     local name=$(basename "$src_dir")
     echo "- Recompiling: $name"
     java -jar "$tool" b -f --frame-path "$framework_dir" "$src_dir" -o "$out_dir/${name}.jar" 2>/dev/null || {
@@ -776,7 +767,7 @@ BUILD_PROP() {
     local partition="$2"
     local key="$3"
     local value="${4:-}"
-    
+
     local prop_file=""
     case "$partition" in
         system) prop_file="$firm_dir/system/system/build.prop" ;;
@@ -784,12 +775,12 @@ BUILD_PROP() {
         system_ext) prop_file="$firm_dir/system_ext/etc/build.prop" ;;
         *) echo "- Unknown partition: $partition"; return 1 ;;
     esac
-    
+
     if [[ ! -f "$prop_file" ]]; then
         echo "- build.prop not found: $prop_file"
         return 1
     fi
-    
+
     if grep -q "^${key}=" "$prop_file"; then
         sed -i "s|^${key}=.*|${key}=${value}|" "$prop_file"
     else
