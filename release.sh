@@ -8,12 +8,13 @@ set -euo pipefail
 
 : "${ZIP_PATH:?ZIP_PATH is required}"
 : "${BUILD_TIME:?BUILD_TIME is required}"
-: "${TARGET_DEVICE:?TARGET_DEVICE is required}"
 : "${STOCK_DEVICE:?STOCK_DEVICE is required}"
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 
-TAG_NAME="${TARGET_DEVICE}-$(date +%s)"
-RELEASE_NAME="${TARGET_DEVICE} Port For ${STOCK_DEVICE}"
+TARGET_DEVICE_DISPLAY="${TARGET_DEVICE:-DUMMY}"
+
+TAG_NAME="${STOCK_DEVICE}-$(date +%s)"
+RELEASE_NAME="${TARGET_DEVICE_DISPLAY} Port For ${STOCK_DEVICE}"
 
 echo "Uploading to GoFile..."
 GOFILE_LINK=$(bash "$(pwd)/upload.sh" "$ZIP_PATH")
@@ -34,7 +35,7 @@ $GOFILE_LINK
 
 #### 📱 Rom Info:
 • Ported For: $STOCK_DEVICE
-• Ported From: $TARGET_DEVICE
+• Ported From: $TARGET_DEVICE_DISPLAY
 
 #### ⚙️ Build Options:
 • Filesystem: $OUTPUT_FILESYSTEM
