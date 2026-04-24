@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 if [ "$#" -lt 6 ]; then
     echo "Usage: $0 <STOCK_DEVICE> <USE_UI_8_TETHERING_APEX> <TARGET_DEVICE> <TARGET_DEVICE_CSC> <TARGET_DEVICE_IMEI> <OUTPUT_FILESYSTEM>"
@@ -12,6 +13,11 @@ export TARGET_DEVICE="$3"
 export TARGET_DEVICE_CSC="$4"
 export TARGET_DEVICE_IMEI="$5"
 export OUTPUT_FILESYSTEM="$6"
+
+if [[ "$OUTPUT_FILESYSTEM" != "erofs" && "$OUTPUT_FILESYSTEM" != "ext4" ]]; then
+    echo "OUTPUT_FILESYSTEM must be 'erofs' or 'ext4'. Got: $OUTPUT_FILESYSTEM"
+    exit 1
+fi
 
 VERSION="1"
 
