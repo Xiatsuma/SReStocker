@@ -1,3 +1,0 @@
-# format:
-# <relative_path>|<line_to_append_if_missing>
-# keep empty for now if you only want remove-only behavior
