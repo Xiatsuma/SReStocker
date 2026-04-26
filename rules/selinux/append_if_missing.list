@@ -1,3 +1,2 @@
-# format:
-# <relative_path>|<line_to_append_if_missing>
-# keep empty for now if you only want remove-only behavior
+# relative/path|line to append if missing
+# leave empty unless you explicitly need append rules
