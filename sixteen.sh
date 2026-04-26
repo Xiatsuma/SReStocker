@@ -6,7 +6,6 @@ if [ "$#" -lt 6 ]; then
     exit 1
 fi
 
-# Device info
 export STOCK_DEVICE="$1"
 export USE_UI_8_TETHERING_APEX="$2"
 export TARGET_DEVICE="$3"
@@ -15,13 +14,12 @@ export TARGET_DEVICE_IMEI="$5"
 export OUTPUT_FILESYSTEM="$6"
 
 if [[ "$OUTPUT_FILESYSTEM" != "erofs" && "$OUTPUT_FILESYSTEM" != "ext4" ]]; then
-    echo "OUTPUT_FILESYSTEM must be 'erofs' or 'ext4'. Got: $OUTPUT_FILESYSTEM"
+    echo "OUTPUT_FILESYSTEM must be 'erofs' or 'ext4'."
     exit 1
 fi
 
 VERSION="1"
 
-# Directories
 export OUT_DIR="$(pwd)/OUT"
 export WORK_DIR="$(pwd)/WORK"
 export FIRM_DIR="$(pwd)/FIRMWARE"
@@ -31,10 +29,9 @@ export VNDKS_COLLECTION="$(pwd)/QuantumROM/vndks"
 
 export BUILD_PARTITIONS="product,system_ext,system"
 
-# Source
 source "$(pwd)/scripts/debloat.sh"
 source "$(pwd)/scripts/QuantumRom.sh"
-source "$(pwd)/scripts/selinux_alt.sh"
+source "$(pwd)/scripts/selinux_engine.sh"
 
 EXTRACT_FIRMWARE "$FIRM_DIR/$TARGET_DEVICE"
 EXTRACT_FIRMWARE_IMG "$FIRM_DIR/$TARGET_DEVICE"
@@ -48,7 +45,7 @@ APPLY_CUSTOM_FEATURES "$FIRM_DIR/$TARGET_DEVICE"
 INSTALL_FRAMEWORK "$FIRM_DIR/$TARGET_DEVICE/system/system/framework/framework-res.apk"
 
 D_ID="$(grep -m1 '^ro.build.display.id=' "$FIRM_DIR/$TARGET_DEVICE/system/system/build.prop" | cut -d= -f2 | tr -d '\r')"
-BUILD_PROP "$FIRM_DIR/$TARGET_DEVICE" "system" "ro.build.display.id" "${D_ID} V-${VERSION}: Build with Quantum Tools"
-BUILD_PROP "$FIRM_DIR/$TARGET_DEVICE" "product" "ro.build.display.id" "${D_ID} V-${VERSION}: Build with Quantum Tools"
+BUILD_PROP "$FIRM_DIR/$TARGET_DEVICE" "system" "ro.build.display.id" "${D_ID} V-${VERSION}: Build with SReStocker"
+BUILD_PROP "$FIRM_DIR/$TARGET_DEVICE" "product" "ro.build.display.id" "${D_ID} V-${VERSION}: Build with SReStocker"
 
 BUILD_IMG "$FIRM_DIR/$TARGET_DEVICE" "$OUTPUT_FILESYSTEM" "$OUT_DIR"
