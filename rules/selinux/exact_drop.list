@@ -1,0 +1,16 @@
+# format:
+# <relative_path>|<exact_line>
+
+system/system/etc/selinux/plat_sepolicy.cil|(genfscon sysfs "/bus/usb/devices" (u object_r sysfs_usb ((s0) (s0))))
+system/system/etc/selinux/plat_sepolicy.cil|(genfscon proc "/sys/vm/compaction_proactiveness" (u object_r proc_compaction_proactiveness ((s0) (s0))))
+system_ext/etc/selinux/system_ext_sepolicy.cil|(genfscon proc "/sys/kernel/firmware_config" (u object_r proc_fmw ((s0) (s0))))
+system_ext/etc/selinux/system_ext_sepolicy.cil|(genfscon proc "/sys/vm/compaction_proactiveness" (u object_r proc_compaction_proactiveness ((s0) (s0))))
+system_ext/etc/selinux/system_ext_property_contexts|init.svc.vendor.wvkprov_server_hal                           u:object_r:wvkprov_prop:s0
+
+system/system_ext/etc/selinux/system_ext_sepolicy.cil|(genfscon proc "/sys/kernel/firmware_config" (u object_r proc_fmw ((s0) (s0))))
+system/system_ext/etc/selinux/system_ext_sepolicy.cil|(genfscon proc "/sys/vm/compaction_proactiveness" (u object_r proc_compaction_proactiveness ((s0) (s0))))
+system/system_ext/etc/selinux/system_ext_property_contexts|init.svc.vendor.wvkprov_server_hal                           u:object_r:wvkprov_prop:s0
+
+system/system/system_ext/etc/selinux/system_ext_sepolicy.cil|(genfscon proc "/sys/kernel/firmware_config" (u object_r proc_fmw ((s0) (s0))))
+system/system/system_ext/etc/selinux/system_ext_sepolicy.cil|(genfscon proc "/sys/vm/compaction_proactiveness" (u object_r proc_compaction_proactiveness ((s0) (s0))))
+system/system/system_ext/etc/selinux/system_ext_property_contexts|init.svc.vendor.wvkprov_server_hal                           u:object_r:wvkprov_prop:s0
