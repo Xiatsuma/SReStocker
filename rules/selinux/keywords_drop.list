@@ -1,4 +1,4 @@
-# Remove lines containing these keywords from mapping/<vndk>.0.cil
+# keyword-based drops from mapping/<vndk>.0.cil
 audiomirroring
 fabriccrypto
 hal_dsms_default
