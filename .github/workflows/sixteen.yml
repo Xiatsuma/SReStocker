@@ -30,35 +30,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # --- PROFESSIONAL FIX: Download Mods/Apps from External Release ---
       - name: Download Mods/Apps from External Release
         run: |
           echo "Downloading external Apps..."
           mkdir -p QuantumROM/Mods
-          
-          # Direct link from your new asset repo
           curl -L -o apps.zip "https://github.com/Xiatsuma/SReStocker-Mods/releases/download/v1.0/Apps.zip"
-          
           if [ ! -f apps.zip ]; then
             echo "ERROR: Failed to download apps.zip"
             exit 1
           fi
-          
-          # Unzip into QuantumROM/Mods
-          # The zip contains an "Apps/" folder, so it becomes QuantumROM/Mods/Apps/
           unzip -q apps.zip -d QuantumROM/Mods
-          
-          # Cleanup
           rm apps.zip
-          
-          # Verify structure exists for mods.sh
           if [ ! -d "QuantumROM/Mods/Apps" ]; then
             echo "ERROR: QuantumROM/Mods/Apps directory not found after unzip."
             ls -la QuantumROM/Mods/
             exit 1
           fi
           echo "✅ Apps downloaded successfully."
-      # --- END FIX ---
 
       - name: Validate STOCK_DEVICE
         run: |
@@ -85,11 +73,18 @@ jobs:
             "${{ github.event.inputs.STOCK_DEVICE }}" \
             "${{ github.event.inputs.OUTPUT_FILESYSTEM }}"
 
+      - name: Export variables for release step
+        run: |
+          echo "TARGET_DEVICE=${{ github.event.inputs.STOCK_DEVICE }}" >> $GITHUB_ENV
+          echo "STOCK_DEVICE=${{ github.event.inputs.STOCK_DEVICE }}" >> $GITHUB_ENV
+          echo "OUTPUT_FILESYSTEM=${{ github.event.inputs.OUTPUT_FILESYSTEM }}" >> $GITHUB_ENV
+          echo "COMPRESS_IMG_TO_XZ=${{ github.event.inputs.COMPRESS_IMG_TO_XZ }}" >> $GITHUB_ENV
+          echo "BUILD_TIME=$(TZ='UTC' date '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_ENV
+
       - name: Package output
         run: |
-          echo "BUILD_TIME=$(TZ='UTC' date '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_ENV
           OUT_DIR="$(pwd)/OUT"
-          ZIP_NAME="${{ github.event.inputs.STOCK_DEVICE }}_Port.zip"
+          ZIP_NAME="${TARGET_DEVICE}_Port.zip"
           ZIP_PATH="$OUT_DIR/$ZIP_NAME"
 
           ALLOWED="system.img system_ext.img product.img"
@@ -111,7 +106,7 @@ jobs:
             esac
           done
 
-          if [ "${{ github.event.inputs.COMPRESS_IMG_TO_XZ }}" = "True" ]; then
+          if [ "$COMPRESS_IMG_TO_XZ" = "True" ]; then
             for img in "$OUT_DIR"/*.img; do
               [ -f "$img" ] || continue
               sudo xz -9 -T0 "$img"
@@ -124,9 +119,6 @@ jobs:
       - name: Upload + Release
         env:
           GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
-          STOCK_DEVICE: ${{ github.event.inputs.STOCK_DEVICE }}
-          OUTPUT_FILESYSTEM: ${{ github.event.inputs.OUTPUT_FILESYSTEM }}
-          COMPRESS_IMG_TO_XZ: ${{ github.event.inputs.COMPRESS_IMG_TO_XZ }}
         run: |
           bash release.sh
 
