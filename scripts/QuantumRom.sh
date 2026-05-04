@@ -399,6 +399,7 @@ ADJUST_SYSTEM_EXT() {
             SEPARATE_SYSTEM_EXT "$EXTRACTED_FIRM_DIR"
         fi
     fi
+    export TARGET_ROM_SYSTEM_EXT_DIR="${TARGET_ROM_SYSTEM_EXT_DIR:-$EXTRACTED_FIRM_DIR/system/system/system_ext}"
     echo "- TARGET_ROM_SYSTEM_EXT_DIR set to: $TARGET_ROM_SYSTEM_EXT_DIR"
 }
 
