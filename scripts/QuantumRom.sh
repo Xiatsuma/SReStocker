@@ -384,7 +384,7 @@ ADJUST_SYSTEM_EXT() {
         return 1
     fi
     local EXTRACTED_FIRM_DIR="$1"
-    if [ "$STOCK_HAS_SEPARATE_SYSTEM_EXT" = "FALSE" ]; then
+    if [ "${STOCK_HAS_SEPARATE_SYSTEM_EXT:-}" = "FALSE" ]; then
         echo "- STOCK_HAS_SEPARATE_SYSTEM_EXT: $STOCK_HAS_SEPARATE_SYSTEM_EXT"
         if [ -d "$EXTRACTED_FIRM_DIR/system/system/system_ext/apex" ]; then
             export TARGET_ROM_SYSTEM_EXT_DIR="$EXTRACTED_FIRM_DIR/system/system/system_ext"
@@ -393,7 +393,7 @@ ADJUST_SYSTEM_EXT() {
         elif [ -d "$EXTRACTED_FIRM_DIR/system_ext/apex" ]; then
             ADD_SYSTEM_EXT_IN_SYSTEM_ROOT "$EXTRACTED_FIRM_DIR"
         fi
-    elif [ "$STOCK_HAS_SEPARATE_SYSTEM_EXT" = "TRUE" ]; then
+    elif [ "${STOCK_HAS_SEPARATE_SYSTEM_EXT:-}" = "TRUE" ]; then
         echo "STOCK_HAS_SEPARATE_SYSTEM_EXT: $STOCK_HAS_SEPARATE_SYSTEM_EXT"
         if [ -d "$EXTRACTED_FIRM_DIR/system/system/system_ext/apex" ]; then
             SEPARATE_SYSTEM_EXT "$EXTRACTED_FIRM_DIR"
@@ -450,12 +450,12 @@ APPLY_STOCK_CONFIG() {
     echo "- Stock device vndk version: $STOCK_VNDK_VERSION"
     export STOCK_ROM_FLOATING_FEATURE="$DEVICES_DIR/$STOCK_DEVICE/floating_feature.xml"
     export STOCK_SIOP_POLICY_FILENAME="$(awk -F'[<>]' '$2 == "SEC_FLOATING_FEATURE_SYSTEM_CONFIG_SIOP_POLICY_FILENAME" {print $3}' "$STOCK_ROM_FLOATING_FEATURE" | tr -d '\r' | xargs)"
-    export STOCK_DEVICE_TYPE="$(awk -F'[<>]' '$2 == "SEC_FLOATING_FEATURE_COMMON_CONFIG_DEVICE_MANUFACTURING_TYPE" {print $3}' "$STOCK_ROM_FLOATING_FEATURE")"
-    echo "- Stock device type: $STOCK_DEVICE_TYPE"
+    export STOCK_DEVICE_TYPE="$(awk -F'[<>]' '$2 == "SEC_FLOATING_FEATURE_COMMON_CONFIG_DEVICE_MANUFACTURING_TYPE" {print $3}' "$STOCK_ROM_FLOATING_FEATURE" | tr -d '\r' | xargs)"
+    echo "- Stock device type: ${STOCK_DEVICE_TYPE:-unknown}"
 
     ADJUST_SYSTEM_EXT "$EXTRACTED_FIRM_DIR"
 
-    if [ "$STOCK_DEVICE_TYPE" != "jdm" ]; then
+    if [ "${STOCK_DEVICE_TYPE:-}" != "jdm" ]; then
         rm -rf "$EXTRACTED_FIRM_DIR/system/system/cameradata/portrait_data"
     fi
 
