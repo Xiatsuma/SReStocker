@@ -70,12 +70,12 @@ RECOMPILE "$APKTOOL" "$FIRM_DIR/$TARGET_DEVICE/system/system/framework" "$WORK_D
 mv -f "$WORK_DIR"/*.jar "$FIRM_DIR/$TARGET_DEVICE/system/system/framework/"
 
 # 6. Update Build Props
-D_ID="$(grep -m1 '^ro.build.display.id=' "$FIRM_DIR/$STOCK_DEVICE/system/system/build.prop" | cut -d= -f2 | tr -d '\r')"
+D_ID="$(grep -m1 '^ro.build.PDA=' "$FIRM_DIR/$TARGET_DEVICE/system/system/build.prop" | cut -d= -f2 | tr -d '\r')"
 
-NEW_ID="${D_ID%%[-_]*}_SReStocker"
+NEW_ID="${D_ID}_SReStocker"
 
-BUILD_PROP "$FIRM_DIR/$STOCK_DEVICE" "system" "ro.build.display.id" "$NEW_ID"
-BUILD_PROP "$FIRM_DIR/$STOCK_DEVICE" "product" "ro.build.display.id" "$NEW_ID"
+BUILD_PROP "$FIRM_DIR/$TARGET_DEVICE" "system" "ro.build.display.id" "$NEW_ID"
+BUILD_PROP "$FIRM_DIR/$TARGET_DEVICE" "product" "ro.build.display.id" "$NEW_ID"
 
 # 7. Build Final Image
 BUILD_IMG "$FIRM_DIR/$TARGET_DEVICE" "$OUTPUT_FILESYSTEM" "$OUT_DIR"
