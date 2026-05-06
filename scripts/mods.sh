@@ -72,7 +72,7 @@ APPLY_MODS() {
     # --------------------------------------------------------------------------
     # JDM Special (only if device type is jdm)
     # --------------------------------------------------------------------------
-    if [ "$STOCK_DEVICE_TYPE" = "jdm" ]; then
+    if [ "${STOCK_DEVICE_TYPE:-}" = "jdm" ]; then
         echo "- Applying mod: JDM_Special SamSungCamera"
         rm -rf "$EXTRACTED_FIRM_DIR/system/system/priv-app/SamSungCamera"
         cp -rfa "$(pwd)/QuantumROM/Mods/Apps/JDM_Special/SamSungCamera/." "$EXTRACTED_FIRM_DIR/"
