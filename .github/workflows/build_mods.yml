@@ -66,7 +66,6 @@ jobs:
             mkdir -p "QuantumROM/Mods/Apps/$APP/$(dirname "$REL_PATH")"
             cp -ra "$APP_PATH" "QuantumROM/Mods/Apps/$APP/$REL_PATH"
             
-            # Find and copy permission files for this app
             find FIRMWARE/MODS_TEMP -type f \( -iname "*${APP}*.xml" -o -iname "*${APP//Samsung/}*.xml" \) -path "*/etc/permissions/*" 2>/dev/null | while read xml; do
               PERM_REL="${xml#FIRMWARE/MODS_TEMP/}"
               mkdir -p "QuantumROM/Mods/Apps/$APP/$(dirname "$PERM_REL")"
@@ -88,12 +87,15 @@ jobs:
           cd ../..
           echo "Done. Size: $(du -h Apps.zip | cut -f1)"
 
+      - name: Set tag name
+        run: echo "TAG_NAME=mods-$(date +%Y%m%d%H%M%S)" >> $GITHUB_ENV
+
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           name: "Mods Bundle"
-          tag_name: "mods-$(date +%Y%m%d%H%M%S)"
+          tag_name: ${{ env.TAG_NAME }}
           files: Apps.zip
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
           
