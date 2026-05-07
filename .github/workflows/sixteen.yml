@@ -38,7 +38,7 @@ jobs:
         run: |
           echo "Downloading external Apps..."
           mkdir -p QuantumROM/Mods
-          curl -L -o apps.zip "https://github.com/Xiatsuma/SReStocker-Mods/releases/download/v1.0/Apps.zip"
+          curl -L -o apps.zip "https://github.com/Xiatsuma/SReStocker-Mods/releases/download/v2.0/Apps.zip"
           if [ ! -f apps.zip ]; then
             echo "ERROR: Failed to download apps.zip"
             exit 1
