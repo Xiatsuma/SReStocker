@@ -38,7 +38,7 @@ DEBLOAT_APPS=(
     "GameDriver-EX2100" "GameDriver-EX2200" "GameDriver-SM8150" "HashTagService"
     "MultiControlVP6" "LedCoverService" "LinkToWindowsService" "LiveStickers"
     "MemorySaver_O_Refresh" "MultiControl" "OMCAgent5" "OneDrive_Samsung_v3"
-    "OneStoreService" "SamsungCarKeyFw" "SamsungPass" "SamsungSmartSuggestions"
+    "OneStoreService" "SamsungCarKeyFw" "SamsungPass"
     "SettingsBixby" "SetupIndiaServicesTnC" "SKTFindLostPhone" "SKTHiddenMenu"
     "SKTMemberShip" "SKTOneStore" "SmartEye" "SmartPush" "SmartThingsKit"
     "SmartTouchCall" "SOAgent7" "SOAgent75" "SolarAudio-service" "SPPPushClient"
