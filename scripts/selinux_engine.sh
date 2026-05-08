@@ -1,12 +1,14 @@
 #!/bin/bash
+# SReStocker independent rule-driven SELinux patch engine
 
-SELINUX_RULES_DIR="$(pwd)/scripts/rules/selinux"
+SELINUX_RULES_DIR="$(pwd)/rules/selinux"
 
 log_w() { echo "[WARN] $*" >&2; }
 log_e() { echo "[ERROR] $*" >&2; }
 
 trim() {
     local s="$1"
+    # shellcheck disable=SC2001
     s="$(echo "$s" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
     printf '%s' "$s"
 }
