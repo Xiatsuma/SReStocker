@@ -1,0 +1,152 @@
+name: SReStocker Sixteen
+
+on:
+  workflow_dispatch:
+    inputs:
+      STOCK_DEVICE:
+        description: "STOCK_DEVICE model"
+        required: true
+        type: choice
+        options:
+          - SM-A346E
+          - SM-A346N
+          - SM-A3460
+          - SM-A346M
+        default: "SM-A346E"
+      TARGET_DEVICE:
+        description: "TARGET_DEVICE model"
+        required: true
+        type: choice
+        options:
+          - SM-A346E
+          - SM-A346N
+          - SM-A3460
+          - SM-A346M
+        default: "SM-A346E"
+      SAMFW_URL:
+        description: "Direct SamFW download URL (.zip)"
+        required: true
+      OUTPUT_FILESYSTEM:
+        description: "Filesystem type"
+        required: true
+        type: choice
+        options:
+          - erofs
+          - ext4
+        default: "erofs"
+      COMPRESS_IMG_TO_XZ:
+        description: "Compress IMG to XZ"
+        required: true
+        type: choice
+        options:
+          - "False"
+          - "True"
+        default: "False"
+
+jobs:
+  build:
+    name: Build SReStocker Port
+    runs-on: ubuntu-24.04
+    env:
+      SAMFW_URL: ${{ inputs.SAMFW_URL }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Mods/Apps from External Release
+        run: |
+          echo "Downloading external Apps..."
+          mkdir -p SReStocker/Mods
+          curl -L -o apps.zip "https://github.com/Xiatsuma/SReStocker-Mods/releases/download/v2.0/Apps.zip"
+          if [ ! -f apps.zip ]; then
+            echo "ERROR: Failed to download apps.zip"
+            exit 1
+          fi
+          unzip -q apps.zip -d SReStocker/Mods
+          rm apps.zip
+          if [ ! -d "SReStocker/Mods/Apps" ]; then
+            echo "ERROR: SReStocker/Mods/Apps directory not found after unzip."
+            ls -la SReStocker/Mods/
+            exit 1
+          fi
+          echo "✅ Apps downloaded successfully."
+
+      - name: Validate STOCK_DEVICE
+        run: |
+          STOCK_DEVICE="${{ github.event.inputs.STOCK_DEVICE }}"
+          DEVICE_PATH="SReStocker/Devices/$STOCK_DEVICE"
+          if [ "$STOCK_DEVICE" != "None" ] && [ ! -d "$DEVICE_PATH" ]; then
+            echo "Unsupported STOCK_DEVICE: $STOCK_DEVICE"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: |
+          sudo apt install -y p7zip-full lz4 android-sdk-libsparse-utils f2fs-tools fuse2fs fuse e2fsprogs python3 python3-pip zipalign unzip openjdk-17-jdk jq wget
+          bash scripts/setup_directories.sh FIRMWARE WORK OUT
+
+      - name: Download firmware via SamFW
+        run: |
+          source scripts/core_building.sh
+          DOWNLOAD_FIRMWARE "${{ github.event.inputs.TARGET_DEVICE }}" "FIRMWARE"
+
+      - name: Start build
+        run: |
+          sudo bash scripts/sixteen.sh \
+            "${{ github.event.inputs.STOCK_DEVICE }}" \
+            "${{ github.event.inputs.TARGET_DEVICE }}" \
+            "${{ github.event.inputs.OUTPUT_FILESYSTEM }}"
+
+      - name: Export variables for release
+        run: |
+          echo "STOCK_DEVICE=${{ github.event.inputs.STOCK_DEVICE }}" >> $GITHUB_ENV
+          echo "TARGET_DEVICE=${{ github.event.inputs.TARGET_DEVICE }}" >> $GITHUB_ENV
+          echo "OUTPUT_FILESYSTEM=${{ github.event.inputs.OUTPUT_FILESYSTEM }}" >> $GITHUB_ENV
+          echo "COMPRESS_IMG_TO_XZ=${{ github.event.inputs.COMPRESS_IMG_TO_XZ }}" >> $GITHUB_ENV
+          echo "BUILD_TIME=$(TZ='UTC' date '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_ENV
+
+      - name: Package output
+        run: |
+          OUT_DIR="$(pwd)/OUT"
+          ZIP_NAME="${TARGET_DEVICE}-to-${STOCK_DEVICE}_Port.zip"
+          ZIP_PATH="$OUT_DIR/$ZIP_NAME"
+
+          ALLOWED="system.img system_ext.img product.img"
+          for f in "$OUT_DIR"/*.img; do
+            [ -f "$f" ] || continue
+            fname=$(basename "$f")
+            keep=0
+            for a in $ALLOWED; do
+              [ "$fname" = "$a" ] && keep=1 && break
+            done
+            [ $keep -eq 1 ] || sudo rm -f "$f"
+          done
+
+          for f in "$OUT_DIR"/*; do
+            [ -f "$f" ] || continue
+            case "$f" in
+              *.img) ;;
+              *) sudo rm -f "$f" ;;
+            esac
+          done
+
+          if [ "$COMPRESS_IMG_TO_XZ" = "True" ]; then
+            for img in "$OUT_DIR"/*.img; do
+              [ -f "$img" ] || continue
+              sudo xz -9 -T0 "$img"
+            done
+          fi
+
+          7z a -tzip "$ZIP_PATH" "$OUT_DIR"/*.img "$OUT_DIR"/*.xz -mx=5 2>/dev/null || 7z a -tzip "$ZIP_PATH" "$OUT_DIR"/*.img -mx=5
+          echo "ZIP_PATH=$ZIP_PATH" >> $GITHUB_ENV
+
+      - name: Upload + Release
+        env:
+          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+        run: |
+          bash scripts/release.sh
+
+      - name: Cleanup
+        run: sudo rm -rf *
+        
