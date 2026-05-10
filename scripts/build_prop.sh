@@ -25,20 +25,43 @@ APPLY_CUSTOM_BUILD_PROPS() {
     echo -e ""
     echo -e "${YELLOW}Applying Custom Build Props.${NC}"
 
-    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "ro.product.locale"                    "en-US"
-    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "fw.max_users"                         "5"
-    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "fw.show_multiuserui"                  "1"
-    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "wifi.interface"                       "wlan0"
-    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "wlan.wfd.hdcp"                        "disabled"
-    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "debug.hwui.renderer"                  "skiavk"
-    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "ro.telephony.sim_slots.count"         "2"
-    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "ro.surface_flinger.protected_contents" "true"
-    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "ro.config.dmverity"                   "false"
-    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "ro.config.iccc_version"               "iccc_disabled"
+    # Core Performance & UI Responsiveness
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "dalvik.vm.systemuicompilerfilter" "speed"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "ro.surface_flinger.use_hw_overlays" "true"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "debug.composition.type" "gpu"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "sys.use_fifo_ui" "1"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "ro.surface_flinger.max_frame_buffer_acquired_buffers" "3"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "debug.sf.latch_unsignaled" "1"
 
-    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "product" "ro.product.locale"                   "en-US"
-    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "product" "ro.config.dmverity"                  "false"
-    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "product" "ro.config.iccc_version"              "iccc_disabled"
+    # Graphics & Rendering Stability
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "debug.egl.hw" "1"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "debug.sf.disable_backpressure" "1"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "debug.hwui.renderer" "skiavk"
+
+    # Memory Management
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "dalvik.vm.heapgrowthlimit" "256m"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "dalvik.vm.heapsize" "512m"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "dalvik.vm.heaptargetutilization" "0.75"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "ro.HOME_APP_ADJ" "1"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "persist.sys.purgeable_assets" "1"
+
+    # System Stability & Logging
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "ro.config.nocheckin" "1"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "profiler.force_disable_err_rpt" "1"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "profiler.force_disable_ulog" "1"
+
+    # Networking Stability
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "net.tcp.congestion_control" "bbr"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "net.tcp.default_init_rwnd" "60"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "net.tcp.buffersize.default" "524288,1048576,2097152,524288,1048576,2097152"
+
+    # Cosmetic Build Properties
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "ro.build.official.release" "false"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "ro.build.official.developer" "true"
+
+    # Existing Defaults
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "system" "ro.product.locale" "en-US"
+    CUSTOM_BUILD_PROP "$EXTRACTED_FIRM_DIR" "product" "ro.product.locale" "en-US"
 
     echo "- Custom build props done."
 }
