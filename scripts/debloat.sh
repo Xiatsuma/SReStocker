@@ -7,7 +7,6 @@
 : "${YELLOW:=\e[33m}"
 : "${NC:=\e[0m}"
 
-# ── A34-Verified Debloat Tokens ─────────────────────────────────────────
 DEBLOAT_APPS=(
     # ── Google Bloat ─────────────────────────────────────────────────
     "Maps" "Duo" "DuoStub" "Photos" "Messages"
@@ -15,8 +14,8 @@ DEBLOAT_APPS=(
     "AndroidSystemIntelligence" "SearchSelector"
     "AssistantShell" "BardShell"
     "LiveTranscribe" "DigitalWellbeing"
-    "SpeechServicesByGoogle"
-    "HotwordEnrollment"
+    "SpeechServicesByGoogle" "HotwordEnrollment"
+    "AndroidDeveloperVerifier" "AndroidGlassesCore"
 
     # ── Samsung Bloat ────────────────────────────────────────────────
     "SamsungCalendar" "SamsungTTS" "SamsungBilling"
@@ -30,10 +29,15 @@ DEBLOAT_APPS=(
     "EasySetup" "EarphoneTypeC"
     "OMCAgent5" "LedCoverService"
     "LinkToWindowsService" "OneDrive_Samsung_v3"
-    "MultiControl" "MemorySaver_O_Refresh"
+    "MultiControl" "MultiControlVP6" "MemorySaver_O_Refresh"
     "SmartThingsKit" "SmartTouchCall"
     "GalleryWidget" "HashTagService"
     "StoryService" "StickerFaceARAvatar" "sticker"
+    "BlockchainBasicKit" "LinkSharing_v11"
+    "Notes40" "MinusOnePage"
+    "SVoiceIME" "SketchBook"
+    "AirGlance" "AirReadingGlass" "AirCommand"
+    "LiveDrawing" "ARDrawing"
 
     # ── Facebook / Microsoft / Netflix ───────────────────────────────
     "FBAppManager_NS" "FBInstaller_NS" "FBServices"
@@ -46,8 +50,8 @@ DEBLOAT_APPS=(
     "BixbyVisionFramework3.5" "SettingsBixby"
 
     # ── AR / Avatar / Emoji ──────────────────────────────────────────
-    "AREmoji" "AREmojiEditor" "AvatarEmojiSticker"
-    "AutoDoodle" "AuthFramework"
+    "AREmoji" "AREmojiEditor" "AvatarEmojiSticker" "AvatarEmojiSticker_S"
+    "AutoDoodle" "AuthFramework" "AvatarPicker"
     "ARCore" "ARZone" "LiveStickers"
 
     # ── Kids / Parental ──────────────────────────────────────────────
@@ -59,16 +63,18 @@ DEBLOAT_APPS=(
     "EasymodeContactsWidget81" "Fast" "FunModeSDK"
     "GearManagerStub" "MdecService" "MoccaMobile"
     "PhotoTable" "PlayAutoInstallConfig"
-    "WebManual" "SOAgent75" "SPPPushClient"
+    "WebManual" "SOAgent7" "SOAgent75" "SOAgent76" "SOAgent77"
+    "SPPPushClient"
     "SamsungCarKeyFw" "DigitalKey"
     "SystemUpdate" "TADownloader" "TalkbackSE"
     "UltraDataSaving_O" "GpuWatchApp"
+    "Discover" "DiscoverSEP"
+    "SwiftkeyIme" "SwiftkeySetting"
 
     # ── Prism Bloat ──────────────────────────────────────────────────
     "AmazonMDIP" "appcloud_oobe"
 )
 
-# ── Protected Tokens (NEVER remove these) ────────────────────────────
 PROTECTED_APP_TOKENS=(
     "DeviceServices" "DeviceService"
     "Knox" "Security" "Fmm" "FindMyMobile"
