@@ -165,7 +165,6 @@ EXTRACT_FIRMWARE() {
     done
     echo "✅ Done"
 
-    # Remove unwanted images BEFORE super.img extraction (these are from tar, not super)
     rm -rf $FIRM_DIR/{cache.img,dtbo.img,efuse.img,gz-verified.img,lk-verified.img,md1img.img,md_udc.img,misc.bin,omr.img,param.bin,preloader.img,recovery.img,scp-verified.img,spmfw-verified.img,sspm-verified.img,tee-verified.img,tzar.img,up_param.bin,userdata.img,vbmeta.img,vbmeta_system.img,audio_dsp-verified.img,cam_vpu1-verified.img,cam_vpu2-verified.img,cam_vpu3-verified.img,dpm-verified.img,init_boot.img,mcupm-verified.img,pi_img-verified.img,uh.bin,vendor_boot.img} 2>/dev/null || true
     rm -rf "$FIRM_DIR"/*.txt "$FIRM_DIR"/*.pit "$FIRM_DIR"/*.bin "$FIRM_DIR"/meta-data 2>/dev/null || true
 
@@ -185,7 +184,6 @@ EXTRACT_FIRMWARE() {
             "$(pwd)/bin/lp/lpunpack" "$SUPER_FILE" "$FIRM_DIR" 2>/dev/null
             rm -f "$FIRM_DIR/super.img" "$FIRM_DIR/super_raw.img"
 
-            # Remove unwanted partitions that came from super.img
             rm -rf $FIRM_DIR/{audio_dsp-verified.img,boot.img,cam_vpu1-verified.img,cam_vpu2-verified.img,cam_vpu3-verified.img,dpm-verified.img,dtbo.img,gz-verified.img,init_boot.img,mcupm-verified.img,pi_img-verified.img,recovery.img,scp-verified.img,spmfw-verified.img,sspm-verified.img,tee-verified.img,tzar.img,userdata.img,vbmeta.img,vbmeta_system.img,vendor_boot.img} 2>/dev/null || true
 
             for img in "$FIRM_DIR"/*.img; do
@@ -271,25 +269,25 @@ EXTRACT_FIRMWARE_IMG() {
         case "$fstype" in
             ext4)
                 IMG_SIZE=$(stat -c%s -- "$imgfile")
-                echo -e "- $partition.img Detected ext4. Size: $IMG_SIZE bytes. Extracting..."
+                echo -e "  ✓ $partition.img ext4 ($(numfmt --to=iec $IMG_SIZE))"
                 rm -rf "$FIRM_DIR/$partition"
-                python3 "$(pwd)/bin/py_scripts/imgextractor.py" "$imgfile" "$FIRM_DIR"
+                python3 "$(pwd)/bin/py_scripts/imgextractor.py" "$imgfile" "$FIRM_DIR" &>/dev/null
                 ;;
             erofs)
                 IMG_SIZE=$(stat -c%s -- "$imgfile")
-                echo -e "- $partition.img Detected erofs. Size: $IMG_SIZE bytes. Extracting..."
+                echo -e "  ✓ $partition.img erofs ($(numfmt --to=iec $IMG_SIZE))"
                 rm -rf "$FIRM_DIR/$partition"
-                "$(pwd)/bin/erofs-utils/extract.erofs" -i "$imgfile" -x -f -o "$FIRM_DIR"
+                "$(pwd)/bin/erofs-utils/extract.erofs" -i "$imgfile" -x -f -o "$FIRM_DIR" &>/dev/null
                 ;;
             f2fs)
                 IMG_SIZE=$(stat -c%s -- "$imgfile")
-                echo -e "- $partition.img Detected f2fs. Size: $IMG_SIZE bytes. Converting to ext4"
-                bash "$(pwd)/scripts/convert_to_ext4.sh" "$imgfile"
+                echo -e "  ✓ $partition.img f2fs ($(numfmt --to=iec $IMG_SIZE))"
+                bash "$(pwd)/scripts/convert_to_ext4.sh" "$imgfile" &>/dev/null
                 rm -rf "$FIRM_DIR/$partition"
-                python3 "$(pwd)/bin/py_scripts/imgextractor.py" "$imgfile" "$FIRM_DIR"
+                python3 "$(pwd)/bin/py_scripts/imgextractor.py" "$imgfile" "$FIRM_DIR" &>/dev/null
                 ;;
             *)
-                echo -e "- $partition.img unsupported filesystem type ($fstype), skipping"
+                echo -e "  ⚠️ $partition.img unsupported ($fstype), skipping"
                 continue
                 ;;
         esac
@@ -301,6 +299,7 @@ EXTRACT_FIRMWARE_IMG() {
     fi
     chown -R "$REAL_USER:$REAL_USER" "$FIRM_DIR"
     chmod -R u+rwX "$FIRM_DIR"
+    echo -e "✅ Images extracted"
 }
 
 INSTALL_FRAMEWORK() {
