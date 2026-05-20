@@ -152,20 +152,7 @@ EXTRACT_FIRMWARE() {
     AP_FILE=$(find "$FIRM_DIR" -maxdepth 1 -name "AP_*.tar" | head -n 1)
     [ -z "$AP_FILE" ] && { echo "❌ AP file not found"; exit 1; }
     echo "  Extracting: $(basename "$AP_FILE")"
-
-    SUPER_PARTS="system system_ext product vendor vendor_dlkm system_dlkm odm odm_dlkm"
-    NEED_SUPER=false
-    IFS=',' read -r -a PART_ARRAY <<< "$BUILD_PARTITIONS"
-    EXTRACT_ARGS=()
-    for PART in "${PART_ARRAY[@]}"; do
-        EXTRACT_ARGS+=("*${PART}.img*" "*${PART}_a.img*" "*${PART}_b.img*")
-        for SP in $SUPER_PARTS; do
-            [ "$PART" = "$SP" ] && NEED_SUPER=true && break
-        done
-    done
-    EXTRACT_ARGS+=("*super.img*")
-
-    tar --no-anchored --wildcards -xf "$AP_FILE" "${EXTRACT_ARGS[@]}" 2>/dev/null || tar -xf "$AP_FILE" >/dev/null 2>&1
+    tar -xf "$AP_FILE" -C "$FIRM_DIR" 2>/dev/null
     rm -f "$AP_FILE"
     echo "✅ Done"
 
@@ -178,28 +165,32 @@ EXTRACT_FIRMWARE() {
     done
     echo "✅ Done"
 
-    # Remove unwanted images (original list preserved)
-    rm -rf "$FIRM_DIR"/{cache.img,dtbo.img,efuse.img,gz-verified.img,lk-verified.img,md1img.img,md_udc.img,misc.bin,omr.img,param.bin,preloader.img,recovery.img,scp-verified.img,spmfw-verified.img,sspm-verified.img,tee-verified.img,tzar.img,up_param.bin,userdata.img,vbmeta.img,vbmeta_system.img,audio_dsp-verified.img,cam_vpu1-verified.img,cam_vpu2-verified.img,cam_vpu3-verified.img,dpm-verified.img,init_boot.img,mcupm-verified.img,pi_img-verified.img,uh.bin,vendor_boot.img} 2>/dev/null || true
+    # Remove unwanted images
+    rm -rf $FIRM_DIR/{cache.img.lz4,dtbo.img.lz4,efuse.img.lz4,gz-verified.img.lz4,lk-verified.img.lz4,md1img.img.lz4,md_udc.img.lz4,misc.bin.lz4,omr.img.lz4,param.bin.lz4,preloader.img.lz4,recovery.img.lz4,scp-verified.img.lz4,spmfw-verified.img.lz4,sspm-verified.img.lz4,tee-verified.img.lz4,tzar.img.lz4,up_param.bin.lz4,userdata.img.lz4,vbmeta.img.lz4,vbmeta_system.img.lz4,audio_dsp-verified.img.lz4,cam_vpu1-verified.img.lz4,cam_vpu2-verified.img.lz4,cam_vpu3-verified.img.lz4,dpm-verified.img.lz4,init_boot.img.lz4,mcupm-verified.img.lz4,pi_img-verified.img.lz4,uh.bin.lz4,vendor_boot.img.lz4} 2>/dev/null || true
     rm -rf "$FIRM_DIR"/*.txt "$FIRM_DIR"/*.pit "$FIRM_DIR"/*.bin "$FIRM_DIR"/meta-data 2>/dev/null || true
 
     echo ""; echo "[5/7] Extracting super.img..."
-    SUPER_FILE=$(find "$FIRM_DIR" -maxdepth 1 -name "super.img" | head -n 1)
-    if [ -n "$SUPER_FILE" ] && [ -f "$SUPER_FILE" ]; then
-        if file "$SUPER_FILE" 2>/dev/null | grep -q "sparse"; then
+    if [ -f "$FIRM_DIR/super.img" ]; then
+        if file "$FIRM_DIR/super.img" 2>/dev/null | grep -q "sparse"; then
             echo "    Converting sparse image..."
-            simg2img "$SUPER_FILE" "$FIRM_DIR/super_raw.img" 2>/dev/null || bin/ext4/simg2img "$SUPER_FILE" "$FIRM_DIR/super_raw.img" 2>/dev/null
-            [ -f "$FIRM_DIR/super_raw.img" ] && SUPER_FILE="$FIRM_DIR/super_raw.img"
+            simg2img "$FIRM_DIR/super.img" "$FIRM_DIR/super_raw.img" 2>/dev/null || bin/ext4/simg2img "$FIRM_DIR/super.img" "$FIRM_DIR/super_raw.img" 2>/dev/null
+            rm -f "$FIRM_DIR/super.img"
+            [ -f "$FIRM_DIR/super_raw.img" ] && SUPER_FILE="$FIRM_DIR/super_raw.img" || SUPER_FILE=""
+        else
+            SUPER_FILE="$FIRM_DIR/super.img"
         fi
 
-        echo "    Extracting dynamic partitions..."
-        "$(pwd)/bin/lp/lpunpack" "$SUPER_FILE" "$FIRM_DIR" 2>/dev/null
-        rm -f "$FIRM_DIR/super.img" "$FIRM_DIR/super_raw.img"
+        if [ -n "$SUPER_FILE" ] && [ -f "$SUPER_FILE" ]; then
+            echo "    Extracting dynamic partitions..."
+            "$(pwd)/bin/lp/lpunpack" "$SUPER_FILE" "$FIRM_DIR" 2>/dev/null
+            rm -f "$FIRM_DIR/super.img" "$FIRM_DIR/super_raw.img"
 
-        for img in "$FIRM_DIR"/*.img; do
-            [ -f "$img" ] || continue
-            echo "      ✓ $(basename "$img")"
-        done
-        echo "✅ Done"
+            for img in "$FIRM_DIR"/*.img; do
+                [ -f "$img" ] || continue
+                echo "      ✓ $(basename "$img")"
+            done
+            echo "✅ Done"
+        fi
     else
         echo "  ⚠️ super.img not found — skipping"
     fi
