@@ -165,8 +165,8 @@ EXTRACT_FIRMWARE() {
     done
     echo "✅ Done"
 
-    # Remove unwanted images
-    rm -rf $FIRM_DIR/{cache.img.lz4,dtbo.img.lz4,efuse.img.lz4,gz-verified.img.lz4,lk-verified.img.lz4,md1img.img.lz4,md_udc.img.lz4,misc.bin.lz4,omr.img.lz4,param.bin.lz4,preloader.img.lz4,recovery.img.lz4,scp-verified.img.lz4,spmfw-verified.img.lz4,sspm-verified.img.lz4,tee-verified.img.lz4,tzar.img.lz4,up_param.bin.lz4,userdata.img.lz4,vbmeta.img.lz4,vbmeta_system.img.lz4,audio_dsp-verified.img.lz4,cam_vpu1-verified.img.lz4,cam_vpu2-verified.img.lz4,cam_vpu3-verified.img.lz4,dpm-verified.img.lz4,init_boot.img.lz4,mcupm-verified.img.lz4,pi_img-verified.img.lz4,uh.bin.lz4,vendor_boot.img.lz4} 2>/dev/null || true
+    # Remove unwanted images BEFORE super.img extraction (these are from tar, not super)
+    rm -rf $FIRM_DIR/{cache.img,dtbo.img,efuse.img,gz-verified.img,lk-verified.img,md1img.img,md_udc.img,misc.bin,omr.img,param.bin,preloader.img,recovery.img,scp-verified.img,spmfw-verified.img,sspm-verified.img,tee-verified.img,tzar.img,up_param.bin,userdata.img,vbmeta.img,vbmeta_system.img,audio_dsp-verified.img,cam_vpu1-verified.img,cam_vpu2-verified.img,cam_vpu3-verified.img,dpm-verified.img,init_boot.img,mcupm-verified.img,pi_img-verified.img,uh.bin,vendor_boot.img} 2>/dev/null || true
     rm -rf "$FIRM_DIR"/*.txt "$FIRM_DIR"/*.pit "$FIRM_DIR"/*.bin "$FIRM_DIR"/meta-data 2>/dev/null || true
 
     echo ""; echo "[5/7] Extracting super.img..."
@@ -175,15 +175,18 @@ EXTRACT_FIRMWARE() {
             echo "    Converting sparse image..."
             simg2img "$FIRM_DIR/super.img" "$FIRM_DIR/super_raw.img" 2>/dev/null || bin/ext4/simg2img "$FIRM_DIR/super.img" "$FIRM_DIR/super_raw.img" 2>/dev/null
             rm -f "$FIRM_DIR/super.img"
-            [ -f "$FIRM_DIR/super_raw.img" ] && SUPER_FILE="$FIRM_DIR/super_raw.img" || SUPER_FILE=""
+            SUPER_FILE="$FIRM_DIR/super_raw.img"
         else
             SUPER_FILE="$FIRM_DIR/super.img"
         fi
 
-        if [ -n "$SUPER_FILE" ] && [ -f "$SUPER_FILE" ]; then
+        if [ -f "$SUPER_FILE" ]; then
             echo "    Extracting dynamic partitions..."
             "$(pwd)/bin/lp/lpunpack" "$SUPER_FILE" "$FIRM_DIR" 2>/dev/null
             rm -f "$FIRM_DIR/super.img" "$FIRM_DIR/super_raw.img"
+
+            # Remove unwanted partitions that came from super.img
+            rm -rf $FIRM_DIR/{audio_dsp-verified.img,boot.img,cam_vpu1-verified.img,cam_vpu2-verified.img,cam_vpu3-verified.img,dpm-verified.img,dtbo.img,gz-verified.img,init_boot.img,mcupm-verified.img,pi_img-verified.img,recovery.img,scp-verified.img,spmfw-verified.img,sspm-verified.img,tee-verified.img,tzar.img,userdata.img,vbmeta.img,vbmeta_system.img,vendor_boot.img} 2>/dev/null || true
 
             for img in "$FIRM_DIR"/*.img; do
                 [ -f "$img" ] || continue
