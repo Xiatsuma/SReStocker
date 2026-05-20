@@ -119,7 +119,7 @@ EXTRACT_FIRMWARE() {
     echo ""; echo "[1/7] Extracting ZIP..."
     for file in "$FIRM_DIR"/*.zip; do
         if [ -f "$file" ]; then
-            7z x -y -o"$FIRM_DIR" "$file" >/dev/null 2>&1
+            7z x -y -o"$FIRM_DIR" "$file" &>/dev/null
             rm -f "$file"
         fi
     done
@@ -127,7 +127,7 @@ EXTRACT_FIRMWARE() {
     for file in "$FIRM_DIR"/*.zip; do
         if [ -f "$file" ]; then
             echo "  Extracting nested: $(basename "$file")"
-            7z x -y -o"$FIRM_DIR" "$file" >/dev/null 2>&1
+            7z x -y -o"$FIRM_DIR" "$file" &>/dev/null
             rm -f "$file"
         fi
     done
@@ -140,7 +140,7 @@ EXTRACT_FIRMWARE() {
     rm -f "$FIRM_DIR"/HOME_CSC_*.tar.md5 "$FIRM_DIR"/HOME_CSC_*.tar 2>/dev/null || true
 
     for file in "$FIRM_DIR"/*.xz; do
-        [ -f "$file" ] && { 7z x -y -o"$FIRM_DIR" "$file" >/dev/null 2>&1; rm -f "$file"; }
+        [ -f "$file" ] && { 7z x -y -o"$FIRM_DIR" "$file" &>/dev/null; rm -f "$file"; }
     done
 
     for file in "$FIRM_DIR"/*.md5; do
@@ -609,28 +609,24 @@ GEN_FS_CONFIG() {
         local FS_CONFIG="$EXTRACTED_FIRM_DIR/config/${PARTITION}_fs_config"
         local TMP_EXISTING="$(mktemp)"
         touch "$FS_CONFIG"
-        echo -e ""
-        echo -e "${YELLOW}Generating fs_config for partition:${NC} $PARTITION"
+        echo -e "${YELLOW}Generating fs_config:${NC} $PARTITION"
         awk '{print $1}' "$FS_CONFIG" | sort -u > "$TMP_EXISTING"
         find "$ROOT" -mindepth 1 \( -type f -o -type d -o -type l \) | while IFS= read -r item; do
             REL_PATH="${item#$ROOT/}"
             PATH_ENTRY="$PARTITION/$REL_PATH"
             grep -qxF "$PATH_ENTRY" "$TMP_EXISTING" && continue
             if [ -d "$item" ]; then
-                echo -e "- Adding: $PATH_ENTRY 0 0 0755"
                 printf "%s 0 0 0755\n" "$PATH_ENTRY" >> "$FS_CONFIG"
             else
                 if [[ "$REL_PATH" == */bin/* ]]; then
-                    echo -e "- Adding: $PATH_ENTRY 0 2000 0755"
                     printf "%s 0 2000 0755\n" "$PATH_ENTRY" >> "$FS_CONFIG"
                 else
-                    echo -e "- Adding: $PATH_ENTRY 0 0 0644"
                     printf "%s 0 0 0644\n" "$PATH_ENTRY" >> "$FS_CONFIG"
                 fi
             fi
         done
         rm -f "$TMP_EXISTING"
-        echo -e "- $PARTITION fs_config generated"
+        echo -e "  ✅ $PARTITION fs_config generated"
     done
 }
 
@@ -664,8 +660,7 @@ GEN_FILE_CONTEXTS() {
         [ "$PARTITION" = "config" ] && continue
         local FILE_CONTEXTS="$EXTRACTED_FIRM_DIR/config/${PARTITION}_file_contexts"
         touch "$FILE_CONTEXTS"
-        echo -e ""
-        echo -e "${YELLOW}Generating file_contexts for partition:${NC} $PARTITION"
+        echo -e "${YELLOW}Generating file_contexts:${NC} $PARTITION"
         declare -A EXISTING=()
         while IFS= read -r line || [[ -n "$line" ]]; do
             [ -z "$line" ] && continue
@@ -688,16 +683,14 @@ GEN_FILE_CONTEXTS() {
                 local DIR_ENTRY="${ESCAPED_PATH}(/.*)?"
                 [[ -n "${EXISTING[$DIR_ENTRY]-}" ]] && continue
                 printf "%s %s\n" "$DIR_ENTRY" "$CONTEXT" >> "$FILE_CONTEXTS"
-                echo -e "- Added: $DIR_ENTRY"
                 EXISTING["$DIR_ENTRY"]=1
             else
                 [[ -n "${EXISTING[$ESCAPED_PATH]-}" ]] && continue
                 printf "%s %s\n" "$ESCAPED_PATH" "$CONTEXT" >> "$FILE_CONTEXTS"
-                echo -e "- Added: $ESCAPED_PATH"
                 EXISTING["$ESCAPED_PATH"]=1
             fi
         done
-        echo -e "- $PARTITION file_contexts generated"
+        echo -e "  ✅ $PARTITION file_contexts generated"
         unset EXISTING
     done
 }
@@ -722,18 +715,19 @@ BUILD_IMG() {
         local FILE_CONTEXTS="$EXTRACTED_FIRM_DIR/config/${PARTITION}_file_contexts"
         local SIZE=$(du -sb --apparent-size "$SRC_DIR" | awk '{printf "%.0f", $1 * 1.2}')
         MOUNT_POINT="/$PARTITION"
-        echo -e ""
         [[ -f "$FS_CONFIG" ]] || { echo -e "Warning: $FS_CONFIG missing, skipping $PARTITION"; continue; }
         [[ -f "$FILE_CONTEXTS" ]] || { echo -e "Warning: $FILE_CONTEXTS missing, skipping $PARTITION"; continue; }
         sort -u "$FILE_CONTEXTS" -o "$FILE_CONTEXTS"
         sort -u "$FS_CONFIG" -o "$FS_CONFIG"
         if [[ "$FILE_SYSTEM" == "erofs" ]]; then
             echo -e "${YELLOW}Building EROFS image:${NC} $OUT_IMG"
-            $(pwd)/bin/erofs-utils/mkfs.erofs --mount-point="$MOUNT_POINT" --fs-config-file="$FS_CONFIG" --file-contexts="$FILE_CONTEXTS" -z lz4hc -b 4096 -T 1199145600 "$OUT_IMG" "$SRC_DIR"
+            $(pwd)/bin/erofs-utils/mkfs.erofs --mount-point="$MOUNT_POINT" --fs-config-file="$FS_CONFIG" --file-contexts="$FILE_CONTEXTS" -z lz4hc -b 4096 -T 1199145600 "$OUT_IMG" "$SRC_DIR" &>/dev/null
+            echo -e "  ✅ $(basename "$OUT_IMG") done"
         elif [[ "$FILE_SYSTEM" == "ext4" ]]; then
             echo -e "${YELLOW}Building ext4 image:${NC} $OUT_IMG"
-            $(pwd)/bin/ext4/make_ext4fs -l "$(awk "BEGIN {printf \"%.0f\", $SIZE * 1.1}")" -J -b 4096 -S "$FILE_CONTEXTS" -C "$FS_CONFIG" -a "$MOUNT_POINT" -L "$PARTITION" "$OUT_IMG" "$SRC_DIR"
-            resize2fs -M "$OUT_IMG"
+            $(pwd)/bin/ext4/make_ext4fs -l "$(awk "BEGIN {printf \"%.0f\", $SIZE * 1.1}")" -J -b 4096 -S "$FILE_CONTEXTS" -C "$FS_CONFIG" -a "$MOUNT_POINT" -L "$PARTITION" "$OUT_IMG" "$SRC_DIR" &>/dev/null
+            resize2fs -M "$OUT_IMG" &>/dev/null
+            echo -e "  ✅ $(basename "$OUT_IMG") done"
         else
             echo -e "Unknown filesystem: $FILE_SYSTEM, skipping $PARTITION"
             continue
