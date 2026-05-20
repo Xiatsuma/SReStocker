@@ -1,4 +1,14 @@
 #!/bin/bash
+# =============================================================================
+# SReStocker - Samsung ROM Porting Engine
+# Copyright (C) 2026 Xiatsuma
+# Licensed under PolyForm Noncommercial License 1.0.0
+# https://polyformproject.org/licenses/noncommercial/1.0.0
+#
+# You may NOT use this file except in compliance with the License.
+# Commercial use, removal of this header, or distribution without attribution
+# is strictly prohibited. For permissions: https://github.com/Xiatsuma
+# =============================================================================
 
 RED="\e[31m"
 YELLOW="\e[33m"
@@ -105,65 +115,111 @@ EXTRACT_FIRMWARE() {
         return 1
     fi
     local FIRM_DIR="$1"
-    echo -e "${YELLOW}Extracting downloaded firmware.${NC}"
 
+    echo ""; echo "[1/7] Extracting ZIP..."
     for file in "$FIRM_DIR"/*.zip; do
         if [ -f "$file" ]; then
-            echo -e "- Extracting zip: $(basename "$file")"
-            7z x -y -o"$FIRM_DIR" "$file"
+            7z x -y -o"$FIRM_DIR" "$file" >/dev/null 2>&1
             rm -f "$file"
         fi
     done
-
-    rm -rf "$FIRM_DIR"/BL_*.tar.md5
-    rm -f "$FIRM_DIR"/CP_*.tar.md5
-    rm -f "$FIRM_DIR"/CSC_*.tar.md5
-
-    for file in "$FIRM_DIR"/*.xz; do
+    # Handle nested zip from SamFW
+    for file in "$FIRM_DIR"/*.zip; do
         if [ -f "$file" ]; then
-            echo -e "- Extracting xz: $(basename "$file")"
-            7z x -y -o"$FIRM_DIR" "$file"
+            echo "  Extracting nested: $(basename "$file")"
+            7z x -y -o"$FIRM_DIR" "$file" >/dev/null 2>&1
             rm -f "$file"
         fi
+    done
+    echo "✅ Done"
+
+    echo ""; echo "[2/7] Cleaning up non-AP files..."
+    rm -rf "$FIRM_DIR"/BL_*.tar.md5 "$FIRM_DIR"/BL_*.tar 2>/dev/null || true
+    rm -f "$FIRM_DIR"/CP_*.tar.md5 "$FIRM_DIR"/CP_*.tar 2>/dev/null || true
+    rm -f "$FIRM_DIR"/CSC_*.tar.md5 "$FIRM_DIR"/CSC_*.tar 2>/dev/null || true
+    rm -f "$FIRM_DIR"/HOME_CSC_*.tar.md5 "$FIRM_DIR"/HOME_CSC_*.tar 2>/dev/null || true
+
+    for file in "$FIRM_DIR"/*.xz; do
+        [ -f "$file" ] && { 7z x -y -o"$FIRM_DIR" "$file" >/dev/null 2>&1; rm -f "$file"; }
     done
 
     for file in "$FIRM_DIR"/*.md5; do
-        if [ -f "$file" ]; then
-            mv -- "$file" "${file%.md5}"
-        fi
+        [ -f "$file" ] && mv -- "$file" "${file%.md5}"
     done
+    echo "✅ Done"
 
-    for file in "$FIRM_DIR"/*.tar; do
-        if [ -f "$file" ]; then
-            echo -e "- Extracting tar: $(basename "$file")"
-            tar -xvf "$file" -C "$FIRM_DIR"
-            rm -f "$file"
-        fi
+    echo ""; echo "[3/7] Extracting AP..."
+    AP_FILE=$(find "$FIRM_DIR" -maxdepth 1 -name "AP_*.tar" | head -n 1)
+    [ -z "$AP_FILE" ] && { echo "❌ AP file not found"; exit 1; }
+    echo "  Extracting: $(basename "$AP_FILE")"
+
+    SUPER_PARTS="system system_ext product vendor vendor_dlkm system_dlkm odm odm_dlkm"
+    NEED_SUPER=false
+    IFS=',' read -r -a PART_ARRAY <<< "$BUILD_PARTITIONS"
+    EXTRACT_ARGS=()
+    for PART in "${PART_ARRAY[@]}"; do
+        EXTRACT_ARGS+=("*${PART}.img*" "*${PART}_a.img*" "*${PART}_b.img*")
+        for SP in $SUPER_PARTS; do
+            [ "$PART" = "$SP" ] && NEED_SUPER=true && break
+        done
     done
+    EXTRACT_ARGS+=("*super.img*")
 
-    rm -rf $FIRM_DIR/{cache.img.lz4,dtbo.img.lz4,efuse.img.lz4,gz-verified.img.lz4,lk-verified.img.lz4,md1img.img.lz4,md_udc.img.lz4,misc.bin.lz4,omr.img.lz4,param.bin.lz4,preloader.img.lz4,recovery.img.lz4,scp-verified.img.lz4,spmfw-verified.img.lz4,sspm-verified.img.lz4,tee-verified.img.lz4,tzar.img.lz4,up_param.bin.lz4,userdata.img.lz4,vbmeta.img.lz4,vbmeta_system.img.lz4,audio_dsp-verified.img.lz4,cam_vpu1-verified.img.lz4,cam_vpu2-verified.img.lz4,cam_vpu3-verified.img.lz4,dpm-verified.img.lz4,init_boot.img.lz4,mcupm-verified.img.lz4,pi_img-verified.img.lz4,uh.bin.lz4,vendor_boot.img.lz4}
+    tar --no-anchored --wildcards -xf "$AP_FILE" "${EXTRACT_ARGS[@]}" 2>/dev/null || tar -xf "$AP_FILE" >/dev/null 2>&1
+    rm -f "$AP_FILE"
+    echo "✅ Done"
+
+    echo ""; echo "[4/7] Decompressing LZ4 images..."
     for file in "$FIRM_DIR"/*.lz4; do
-        if [ -f "$file" ]; then
-            echo -e "- Extracting lz4: $(basename "$file")"
-            lz4 -d "$file" "${file%.lz4}"
-            rm -f "$file"
-        fi
+        [ -f "$file" ] || continue
+        echo "    ✓ $(basename "$file")"
+        lz4 -d "$file" "${file%.lz4}" 2>/dev/null || true
+        rm -f "$file"
     done
+    echo "✅ Done"
 
-    rm -rf \
-        "$FIRM_DIR"/*.txt \
-        "$FIRM_DIR"/*.pit \
-        "$FIRM_DIR"/*.bin \
-        "$FIRM_DIR"/meta-data
+    # Remove unwanted images (original list preserved)
+    rm -rf "$FIRM_DIR"/{cache.img,dtbo.img,efuse.img,gz-verified.img,lk-verified.img,md1img.img,md_udc.img,misc.bin,omr.img,param.bin,preloader.img,recovery.img,scp-verified.img,spmfw-verified.img,sspm-verified.img,tee-verified.img,tzar.img,up_param.bin,userdata.img,vbmeta.img,vbmeta_system.img,audio_dsp-verified.img,cam_vpu1-verified.img,cam_vpu2-verified.img,cam_vpu3-verified.img,dpm-verified.img,init_boot.img,mcupm-verified.img,pi_img-verified.img,uh.bin,vendor_boot.img} 2>/dev/null || true
+    rm -rf "$FIRM_DIR"/*.txt "$FIRM_DIR"/*.pit "$FIRM_DIR"/*.bin "$FIRM_DIR"/meta-data 2>/dev/null || true
 
-    if [ -f "$FIRM_DIR/super.img" ]; then
-        echo -e "- Extracting super.img"
-        simg2img "$FIRM_DIR/super.img" "$FIRM_DIR/super_raw.img"
-        rm -f "$FIRM_DIR/super.img"
-        "$(pwd)/bin/lp/lpunpack" "$FIRM_DIR/super_raw.img" "$FIRM_DIR"
-        rm -f "$FIRM_DIR/super_raw.img"
-        echo -e "- Extraction complete"
+    echo ""; echo "[5/7] Extracting super.img..."
+    SUPER_FILE=$(find "$FIRM_DIR" -maxdepth 1 -name "super.img" | head -n 1)
+    if [ -n "$SUPER_FILE" ] && [ -f "$SUPER_FILE" ]; then
+        if file "$SUPER_FILE" 2>/dev/null | grep -q "sparse"; then
+            echo "    Converting sparse image..."
+            simg2img "$SUPER_FILE" "$FIRM_DIR/super_raw.img" 2>/dev/null || bin/ext4/simg2img "$SUPER_FILE" "$FIRM_DIR/super_raw.img" 2>/dev/null
+            [ -f "$FIRM_DIR/super_raw.img" ] && SUPER_FILE="$FIRM_DIR/super_raw.img"
+        fi
+
+        echo "    Extracting dynamic partitions..."
+        "$(pwd)/bin/lp/lpunpack" "$SUPER_FILE" "$FIRM_DIR" 2>/dev/null
+        rm -f "$FIRM_DIR/super.img" "$FIRM_DIR/super_raw.img"
+
+        for img in "$FIRM_DIR"/*.img; do
+            [ -f "$img" ] || continue
+            echo "      ✓ $(basename "$img")"
+        done
+        echo "✅ Done"
+    else
+        echo "  ⚠️ super.img not found — skipping"
     fi
+
+    echo ""; echo "[6/7] Final cleanup..."
+    rm -f "$FIRM_DIR"/*.lz4 2>/dev/null || true
+    rm -f "$FIRM_DIR"/*.md5 2>/dev/null || true
+    echo "✅ Done"
+
+    echo ""; echo "[7/7] Results:"
+    FILE_COUNT=$(find "$FIRM_DIR" -maxdepth 1 -name "*.img" | wc -l)
+    [ "$FILE_COUNT" -eq 0 ] && { echo "❌ Nothing extracted!"; exit 1; }
+    TOTAL_SIZE=$(du -sh "$FIRM_DIR" | cut -f1)
+    echo "═══════════════════════════════════════"
+    echo "✅ Extracted $FILE_COUNT partitions"
+    echo "Total size: $TOTAL_SIZE"
+    echo ""
+    echo "Files:"
+    ls -lh "$FIRM_DIR"/*.img 2>/dev/null
+    echo "═══════════════════════════════════════"
 }
 
 PREPARE_PARTITIONS() {
