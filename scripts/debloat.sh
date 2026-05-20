@@ -31,7 +31,7 @@ DEBLOAT_APPS=(
     "OMCAgent5" "LedCoverService"
     "LinkToWindowsService" "OneDrive_Samsung_v3"
     "MultiControl" "MemorySaver_O_Refresh"
-    "SmartThingsKit" "SmartTouchCall" "SmartEye"
+    "SmartThingsKit" "SmartTouchCall"
     "GalleryWidget" "HashTagService"
     "StoryService" "StickerFaceARAvatar" "sticker"
 
@@ -47,7 +47,7 @@ DEBLOAT_APPS=(
 
     # ── AR / Avatar / Emoji ──────────────────────────────────────────
     "AREmoji" "AREmojiEditor" "AvatarEmojiSticker"
-    "AutoDoodle" "AuthFramework" "AvatarPicker"
+    "AutoDoodle" "AuthFramework"
     "ARCore" "ARZone" "LiveStickers"
 
     # ── Kids / Parental ──────────────────────────────────────────────
