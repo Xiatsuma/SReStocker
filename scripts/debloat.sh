@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# SReStocker - A34 Debloat Script (Final)
+# SReStocker - A34 Debloat Script (OLD BASE + ADDITIONS ONLY)
 # =============================================================================
 
 : "${YELLOW:=\e[33m}"
@@ -19,20 +19,27 @@ DEBLOAT_APPS=(
     "MinusOnePage" "MoccaMobile" "Netflix_stub" "Notes40" "ParentalCare" "PhotoTable"
     "PlayAutoInstallConfig" "SamsungPassAutofill_v1" "SmartReminder" "SmartSwitchStub"
     "UnifiedWFC" "UniversalMDMClient" "VideoEditorLite_Dream_N" "VisionIntelligence3.7"
-    "VoiceAccess" "VTCameraSetting" "WebManual" "WifiGuider" "AirCommand" "AppUpdateCenter"
+    "VoiceAccess" "VTCameraSetting" "WebManual" "WifiGuider" "KTAuth" "KTCustomerService"
+    "KTUsimManager" "LGUMiniCustomerCenter" "LGUplusTsmProxy" "SketchBook"
+    "SKTMemberShip_new" "SktUsimService" "TWorld" "AirCommand" "AppUpdateCenter"
     "AREmoji" "AREmojiEditor" "AuthFramework" "AutoDoodle" "AvatarEmojiSticker"
     "AvatarEmojiSticker_S" "Bixby" "BixbyInterpreter" "BixbyVisionFramework3.5"
-    "DigitalKey" "Discover" "DiscoverSEP" "EarphoneTypeC"
+    "DevGPUDriver-EX2200" "DigitalKey" "Discover" "DiscoverSEP" "EarphoneTypeC"
     "EasySetup" "FBInstaller_NS" "FBServices" "FotaAgent" "GalleryWidget"
-    "HashTagService" "MultiControlVP6" "LedCoverService" "LinkToWindowsService" "LiveStickers"
+    "GameDriver-EX2100" "GameDriver-EX2200" "GameDriver-SM8150" "HashTagService"
+    "MultiControlVP6" "LedCoverService" "LinkToWindowsService" "LiveStickers"
     "MemorySaver_O_Refresh" "MultiControl" "OMCAgent5" "OneDrive_Samsung_v3"
     "OneStoreService" "SamsungCarKeyFw" "SamsungPass"
-    "SettingsBixby" "SetupIndiaServicesTnC" "SmartThingsKit"
-    "SmartTouchCall" "SOAgent7" "SOAgent75" "SPPPushClient"
-    "sticker" "StickerFaceARAvatar" "StoryService" "SVoiceIME"
+    "SettingsBixby" "SetupIndiaServicesTnC" "SKTFindLostPhone" "SKTHiddenMenu"
+    "SKTMemberShip" "SKTOneStore" "SmartEye" "SmartPush" "SmartThingsKit"
+    "SmartTouchCall" "SOAgent7" "SOAgent75" "SolarAudio-service" "SPPPushClient"
+    "sticker" "StickerFaceARAvatar" "StoryService" "SumeNNService" "SVoiceIME"
     "SwiftkeyIme" "SwiftkeySetting" "SystemUpdate" "TADownloader" "TalkbackSE"
-    "UltraDataSaving_O" "YourPhone_P1_5" "AvatarPicker" "GpuWatchApp"
-    "SOAgent76" "SketchBook"
+    "TaPackAuthFw" "TPhoneOnePackage" "TPhoneSetup" "UltraDataSaving_O" "Upday"
+    "UsimRegistrationKOR" "YourPhone_P1_5" "AvatarPicker" "GpuWatchApp"
+    "KT114Provider2" "KTHiddenMenu" "KTOneStore" "KTServiceAgent" "KTServiceMenu"
+    "LGUGPSnWPS" "LGUHiddenMenu" "LGUOZStore" "SKTFindLostPhoneApp" "SmartPush_64"
+    "SOAgent76" "TService" "vexfwk_service" "VexScanner" "LiveEffectService"
 )
 
 PROTECTED_APP_TOKENS=(
@@ -136,18 +143,20 @@ DEBLOAT_APPS_AND_RESIDUALS() {
     fi
 
     local EXTRACTED_FIRM_DIR="$1"
-    echo -e "- Debloating apps + related residuals."
+    echo -e "- Debloating apps + related residuals (safe mode)."
 
     local removed_count=0
     local skipped_protected=0
 
     for app in "${DEBLOAT_APPS[@]}"; do
         if IS_PROTECTED_APP "$app"; then
+            echo -e "  • Skip protected token: $app"
             skipped_protected=$((skipped_protected + 1))
             continue
         fi
 
         if REMOVE_APP_DIRS "$EXTRACTED_FIRM_DIR" "$app"; then
+            echo -e "  • Removed app payloads for token: $app"
             removed_count=$((removed_count + 1))
         fi
 
@@ -311,7 +320,7 @@ DEBLOAT() {
     fi
 
     local EXTRACTED_FIRM_DIR="$1"
-    echo -e "${YELLOW}Debloating (A34 final).${NC}"
+    echo -e "${YELLOW}Debloating apps and files (deep safe mode).${NC}"
 
     DEBLOAT_APPS_AND_RESIDUALS "$EXTRACTED_FIRM_DIR"
     REMOVE_ESIM_FILES "$EXTRACTED_FIRM_DIR"
