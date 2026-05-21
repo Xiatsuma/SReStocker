@@ -1,78 +1,38 @@
 #!/bin/bash
 # =============================================================================
-# SReStocker - A34-Specific Debloat Script
-# Copyright (C) 2026 Xiatsuma
+# SReStocker - A34 Debloat Script (Final)
 # =============================================================================
 
 : "${YELLOW:=\e[33m}"
 : "${NC:=\e[0m}"
 
 DEBLOAT_APPS=(
-    # ── Google Bloat ─────────────────────────────────────────────────
-    "Maps" "Duo" "DuoStub" "Photos" "Messages"
-    "GoogleRestore" "GoogleCalendarSyncAdapter" "AndroidAutoStub"
-    "AndroidSystemIntelligence" "SearchSelector"
-    "AssistantShell" "BardShell"
-    "LiveTranscribe" "DigitalWellbeing"
-    "SpeechServicesByGoogle" "HotwordEnrollment"
-    "AndroidDeveloperVerifier" "AndroidGlassesCore"
-
-    # ── Samsung Bloat ────────────────────────────────────────────────
-    "SamsungCalendar" "SamsungTTS" "SamsungBilling"
-    "SamsungPass" "SamsungPassAutofill_v1"
-    "PaymentFramework" "HMT"
-    "SingleTakeService" "SmartReminder" "SmartSwitchStub"
-    "VideoEditorLite_Dream_N" "VisionIntelligence3.7"
-    "VoiceAccess" "VTCameraSetting" "WifiGuider"
-    "UnifiedWFC" "UniversalMDMClient"
-    "AppUpdateCenter" "FotaAgent"
-    "EasySetup" "EarphoneTypeC"
-    "OMCAgent5" "LedCoverService"
-    "LinkToWindowsService" "OneDrive_Samsung_v3"
-    "MultiControl" "MultiControlVP6" "MemorySaver_O_Refresh"
-    "SmartThingsKit" "SmartTouchCall"
-    "GalleryWidget" "HashTagService"
-    "StoryService" "StickerFaceARAvatar" "sticker"
-    "BlockchainBasicKit" "LinkSharing_v11"
-    "Notes40" "MinusOnePage"
-    "SVoiceIME" "SketchBook"
-    "AirGlance" "AirReadingGlass" "AirCommand"
-    "LiveDrawing" "ARDrawing"
-
-    # ── Facebook / Microsoft / Netflix ───────────────────────────────
-    "FBAppManager_NS" "FBInstaller_NS" "FBServices"
-    "YourPhone_Stub" "YourPhone_P1_5"
-    "Netflix_stub"
-    "OneStoreService"
-
-    # ── Bixby ────────────────────────────────────────────────────────
-    "BixbyWakeup" "Bixby" "BixbyInterpreter"
-    "BixbyVisionFramework3.5" "SettingsBixby"
-
-    # ── AR / Avatar / Emoji ──────────────────────────────────────────
-    "AREmoji" "AREmojiEditor" "AvatarEmojiSticker" "AvatarEmojiSticker_S"
-    "AutoDoodle" "AuthFramework" "AvatarPicker"
-    "ARCore" "ARZone" "LiveStickers"
-
-    # ── Kids / Parental ──────────────────────────────────────────────
-    "KidsHome_Installer" "ParentalCare"
-
-    # ── Misc Samsung Junk ────────────────────────────────────────────
-    "FactoryCameraFB" "WlanTest"
-    "BGMProvider" "Cameralyzer" "DictDiotekForSec"
-    "EasymodeContactsWidget81" "Fast" "FunModeSDK"
-    "GearManagerStub" "MdecService" "MoccaMobile"
-    "PhotoTable" "PlayAutoInstallConfig"
-    "WebManual" "SOAgent7" "SOAgent75" "SOAgent76" "SOAgent77"
-    "SPPPushClient"
-    "SamsungCarKeyFw" "DigitalKey"
-    "SystemUpdate" "TADownloader" "TalkbackSE"
-    "UltraDataSaving_O" "GpuWatchApp"
-    "Discover" "DiscoverSEP"
-    "SwiftkeyIme" "SwiftkeySetting"
-
-    # ── Prism Bloat ──────────────────────────────────────────────────
-    "AmazonMDIP" "appcloud_oobe"
+    "HMT" "PaymentFramework" "SamsungCalendar" "LiveTranscribe" "DigitalWellbeing"
+    "Maps" "Duo" "Photos" "FactoryCameraFB" "WlanTest" "AssistantShell" "BardShell"
+    "DuoStub" "GoogleCalendarSyncAdapter" "AndroidDeveloperVerifier" "AndroidGlassesCore"
+    "SOAgent77" "YourPhone_Stub" "AndroidAutoStub" "SingleTakeService" "SamsungBilling"
+    "AndroidSystemIntelligence" "GoogleRestore" "Messages" "SearchSelector" "AirGlance"
+    "AirReadingGlass" "SamsungTTS" "ARCore" "ARDrawing" "ARZone" "BGMProvider"
+    "BixbyWakeup" "BlockchainBasicKit" "Cameralyzer" "DictDiotekForSec"
+    "EasymodeContactsWidget81" "Fast" "FBAppManager_NS" "FunModeSDK" "GearManagerStub"
+    "KidsHome_Installer" "LinkSharing_v11" "LiveDrawing" "MAPSAgent" "MdecService"
+    "MinusOnePage" "MoccaMobile" "Netflix_stub" "Notes40" "ParentalCare" "PhotoTable"
+    "PlayAutoInstallConfig" "SamsungPassAutofill_v1" "SmartReminder" "SmartSwitchStub"
+    "UnifiedWFC" "UniversalMDMClient" "VideoEditorLite_Dream_N" "VisionIntelligence3.7"
+    "VoiceAccess" "VTCameraSetting" "WebManual" "WifiGuider" "AirCommand" "AppUpdateCenter"
+    "AREmoji" "AREmojiEditor" "AuthFramework" "AutoDoodle" "AvatarEmojiSticker"
+    "AvatarEmojiSticker_S" "Bixby" "BixbyInterpreter" "BixbyVisionFramework3.5"
+    "DigitalKey" "Discover" "DiscoverSEP" "EarphoneTypeC"
+    "EasySetup" "FBInstaller_NS" "FBServices" "FotaAgent" "GalleryWidget"
+    "HashTagService" "MultiControlVP6" "LedCoverService" "LinkToWindowsService" "LiveStickers"
+    "MemorySaver_O_Refresh" "MultiControl" "OMCAgent5" "OneDrive_Samsung_v3"
+    "OneStoreService" "SamsungCarKeyFw" "SamsungPass"
+    "SettingsBixby" "SetupIndiaServicesTnC" "SmartThingsKit"
+    "SmartTouchCall" "SOAgent7" "SOAgent75" "SPPPushClient"
+    "sticker" "StickerFaceARAvatar" "StoryService" "SVoiceIME"
+    "SwiftkeyIme" "SwiftkeySetting" "SystemUpdate" "TADownloader" "TalkbackSE"
+    "UltraDataSaving_O" "YourPhone_P1_5" "AvatarPicker" "GpuWatchApp"
+    "SOAgent76" "SketchBook"
 )
 
 PROTECTED_APP_TOKENS=(
@@ -205,7 +165,7 @@ REMOVE_ESIM_FILES() {
     fi
 
     local EXTRACTED_FIRM_DIR="$1"
-    echo -e "- Removing ESIM files (A34 has no eSIM hardware)."
+    echo -e "- Removing ESIM files."
     rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/autoinstalls/autoinstalls-com.google.android.euicc"
     rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/default-permissions/default-permissions-com.google.android.euicc.xml"
     rm -rf "$EXTRACTED_FIRM_DIR/system/system/etc/permissions/privapp-permissions-com.samsung.euicc.xml"
@@ -242,17 +202,106 @@ REMOVE_FABRIC_CRYPTO() {
     rm -rf "$EXTRACTED_FIRM_DIR/system/system/priv-app/KmxService"
 }
 
-REMOVE_SWIFTKEY_DATA() {
+REMOVE_DEBLOAT_LIBS() {
     if [ "$#" -ne 1 ]; then
         echo -e "Usage: ${FUNCNAME[0]} <EXTRACTED_FIRM_DIR>"
         return 1
     fi
 
     local EXTRACTED_FIRM_DIR="$1"
-    echo -e "- Removing SwiftKey keyboard data."
-    rm -rf "$EXTRACTED_FIRM_DIR/prism/sipdb/SwiftKey"
-    rm -rf "$EXTRACTED_FIRM_DIR/prism/sipdb/Xt9"
-    rm -rf "$EXTRACTED_FIRM_DIR/prism/HWRDB"
+    echo -e "- Removing debloated app libraries."
+
+    # Payment / Samsung Pay
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/hidl_tlc_payment_comm_client.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libtlc_payment_comm.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libtlc_payment_direct_comm.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libtlc_payment_spay.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/vendor.samsung.hardware.tlc.payment@1.0.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/hidl_tlc_payment_comm_client.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libtlc_payment_comm.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libtlc_payment_direct_comm.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libtlc_payment_spay.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/vendor.samsung.hardware.tlc.payment@1.0.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/lib/vendor.samsung.hardware.tlc.payment@1.0-impl.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/lib/vendor.samsung.hardware.tlc.payment@1.0.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/lib64/vendor.samsung.hardware.tlc.payment@1.0-impl.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/lib64/vendor.samsung.hardware.tlc.payment@1.0.so"
+
+    # Bixby Voice
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libSamsungAPVoiceEngine.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libVoiceCommandEngine.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libtensorflowlite_jni_voicecommand.so"
+
+    # Voice Changer
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libvoicechanger.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libvoicechanger.so"
+
+    # Voice Recognition
+    rm -rf "$EXTRACTED_FIRM_DIR/system_ext/lib/libvoicerecognition.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system_ext/lib/libvoicerecognition_jni.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system_ext/lib64/libvoicerecognition.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system_ext/lib64/libvoicerecognition_jni.so"
+
+    # GpuWatchApp
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libgfxgrab.gpuwatchapp.samsung.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libgpustat.gpuwatchapp.samsung.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libsysinfo.gpuwatchapp.samsung.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libgfxgrab.gpuwatchapp.samsung.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libgpustat.gpuwatchapp.samsung.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libsysinfo.gpuwatchapp.samsung.so"
+
+    # Audio Mirroring
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libaudiomirroring_jni.audiomirroring.samsung.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libaudiomirroring_jni.audiomirroring.samsung.so"
+
+    # SPen OCR/SDK (A34 has no S Pen)
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libSDKMoireDetector.spenocr.samsung.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libSDKRecognitionOCR.spenocr.samsung.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libSDKRecognitionText.spensdk.samsung.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libSDKonnxruntime.spenocr.samsung.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libSDKMoireDetector.spenocr.samsung.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libSDKRecognitionOCR.spenocr.samsung.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libSDKRecognitionText.spensdk.samsung.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libSDKonnxruntime.spenocr.samsung.so"
+
+    # Quram codec (from debloated apps, NOT camera)
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libBarcodeReader.quram.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libSEF.quram.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libagifencoder.quram.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib/libimagecodec.quram.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libBarcodeReader.quram.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libSEF.quram.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libagifencoder.quram.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libimagecodec.quram.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/system/lib64/libsecjpegquram.so"
+
+    # SoundTrigger (unused on A34)
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/lib64/hw/android.hardware.soundtrigger3-impl.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/lib64/hw/android.hardware.soundtrigger@2.3-impl.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/lib64/hw/sound_trigger.primary.default.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/lib/hw/android.hardware.soundtrigger3-impl.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/lib/hw/android.hardware.soundtrigger@2.3-impl.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/lib/hw/sound_trigger.primary.default.so"
+
+    # Renderscript (deprecated)
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/lib64/hw/android.hardware.renderscript@1.0-impl.so"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/lib/hw/android.hardware.renderscript@1.0-impl.so"
+}
+
+REMOVE_UNUSED_SERVICES() {
+    if [ "$#" -ne 1 ]; then
+        echo -e "Usage: ${FUNCNAME[0]} <EXTRACTED_FIRM_DIR>"
+        return 1
+    fi
+
+    local EXTRACTED_FIRM_DIR="$1"
+    echo -e "- Removing unused init services."
+
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/gbe.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/chipinfo_init.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/emservice.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/vendor.samsung.hardware.tlc.mpos_tui@1.0-service.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/vendor.samsung.hardware.security.hdcp.wifidisplay-default.rc"
 }
 
 DEBLOAT() {
@@ -262,12 +311,13 @@ DEBLOAT() {
     fi
 
     local EXTRACTED_FIRM_DIR="$1"
-    echo -e "${YELLOW}Debloating (A34 deep safe mode).${NC}"
+    echo -e "${YELLOW}Debloating (A34 final).${NC}"
 
     DEBLOAT_APPS_AND_RESIDUALS "$EXTRACTED_FIRM_DIR"
     REMOVE_ESIM_FILES "$EXTRACTED_FIRM_DIR"
     REMOVE_FABRIC_CRYPTO "$EXTRACTED_FIRM_DIR"
-    REMOVE_SWIFTKEY_DATA "$EXTRACTED_FIRM_DIR"
+    REMOVE_DEBLOAT_LIBS "$EXTRACTED_FIRM_DIR"
+    REMOVE_UNUSED_SERVICES "$EXTRACTED_FIRM_DIR"
 
     echo -e "- Deleting additional unnecessary files and folders."
     rm -rf "$EXTRACTED_FIRM_DIR/system/system/app"/SamsungTTS*
