@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# SReStocker - A34 Debloat Script (OLD BASE + ADDITIONS ONLY)
+# SReStocker - A34 Debloat Script (Final)
 # =============================================================================
 
 : "${YELLOW:=\e[33m}"
@@ -306,11 +306,37 @@ REMOVE_UNUSED_SERVICES() {
     local EXTRACTED_FIRM_DIR="$1"
     echo -e "- Removing unused init services."
 
+    # Debug/Logging services (eat RAM, slow boot)
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/mtklog.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/md_monitor.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/bootperf.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/boringssl_self_test.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/loghidlvendorservice.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/atrace_categories.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/vendor_flash_recovery.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/eara-io-service.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/networksetting.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/system_ext/etc/init/loghidlsysservice.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/system_ext/etc/init/netdiag.rc"
+
+    # Unknown/debug services
     rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/gbe.rc"
     rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/chipinfo_init.rc"
     rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/emservice.rc"
+
+    # Payment/Knox services (apps/libs already debloated)
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/vendor.samsung.hardware.tlc.payment@1.0-service.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/vendor.samsung.hardware.tlc.iccc-service.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/vendor.samsung.hardware.tlc.kg-service.rc"
     rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/vendor.samsung.hardware.tlc.mpos_tui@1.0-service.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/vendor.samsung.hardware.security.skpm-service.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/vendor.samsung.hardware.security.engmode@1.0-service.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/vendor.samsung.hardware.security.drk@2.0-service.rc"
     rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/vendor.samsung.hardware.security.hdcp.wifidisplay-default.rc"
+    rm -rf "$EXTRACTED_FIRM_DIR/vendor/etc/init/wsm-service.rc"
+
+    # Audio mirroring (app already debloated)
+    rm -rf "$EXTRACTED_FIRM_DIR/system/etc/init/audiomirroring.rc"
 }
 
 DEBLOAT() {
